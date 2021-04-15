@@ -1,12 +1,12 @@
 {
-  "name": "slp-cli-wallet",
-  "description": "A hacker-friendly, command line BCH and SLP wallet built with bch-js",
-  "version": "3.0.0",
+  "name": "avax-cli-wallet",
+  "description": "A hacker-friendly, command line AVAX wallet",
+  "version": "1.0.0",
   "author": "Chris Troutner @christroutner",
   "bin": {
-    "slp-cli-wallet": "./bin/run"
+    "avax-cli-wallet": "./bin/run"
   },
-  "bugs": "https://github.com/Permissionless-Software-Foundation/slp-cli-wallet/issues",
+  "bugs": "https://github.com/Permissionless-Software-Foundation/avax-cli-wallet/issues",
   "dependencies": {
     "@oclif/command": "^1.8.0",
     "@oclif/config": "^1.17.0",
@@ -52,7 +52,7 @@
     "/wallets",
     "/config"
   ],
-  "homepage": "https://github.com/Permissionless-Software-Foundation/slp-cli-wallet",
+  "homepage": "https://github.com/Permissionless-Software-Foundation/avax-cli-wallet",
   "keywords": [
     "oclif"
   ],
@@ -60,12 +60,12 @@
   "main": "src/index.js",
   "oclif": {
     "commands": "./src/commands",
-    "bin": "slp-cli-wallet",
+    "bin": "avax-cli-wallet",
     "plugins": [
       "@oclif/plugin-help"
     ]
   },
-  "repository": "Permissionless-Software-Foundation/slp-cli-wallet",
+  "repository": "Permissionless-Software-Foundation/avax-cli-wallet",
   "scripts": {
     "postpack": "rm -f oclif.manifest.json",
     "prepack": "oclif-dev manifest && oclif-dev readme",
