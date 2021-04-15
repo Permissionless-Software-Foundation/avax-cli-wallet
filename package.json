@@ -1,0 +1,83 @@
+{
+  "name": "slp-cli-wallet",
+  "description": "A hacker-friendly, command line BCH and SLP wallet built with bch-js",
+  "version": "3.0.0",
+  "author": "Chris Troutner @christroutner",
+  "bin": {
+    "slp-cli-wallet": "./bin/run"
+  },
+  "bugs": "https://github.com/Permissionless-Software-Foundation/slp-cli-wallet/issues",
+  "dependencies": {
+    "@oclif/command": "^1.8.0",
+    "@oclif/config": "^1.17.0",
+    "@oclif/plugin-help": "^3.2.0",
+    "@psf/bch-js": "^4.15.0",
+    "bignumber.js": "^9.0.0",
+    "cli-table": "^0.3.1",
+    "collect.js": "^4.16.6",
+    "qrcode-terminal": "^0.12.0",
+    "shelljs": "^0.8.2"
+  },
+  "devDependencies": {
+    "@oclif/dev-cli": "^1.22.2",
+    "@oclif/test": "^1.2.7",
+    "chai": "^4.2.0",
+    "coveralls": "^3.0.2",
+    "eslint": "^5.7.0",
+    "eslint-config-oclif": "^3.1.0",
+    "eslint-config-standard": "^14.1.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^3.1.0",
+    "eslint-plugin-standard": "^4.0.0",
+    "globby": "^10.0.0",
+    "lodash.clonedeep": "^4.5.0",
+    "mocha": "^7.1.2",
+    "mock-fs": "^4.13.0",
+    "nock": "^12.0.0",
+    "nyc": "^15.0.0",
+    "prettier": "^1.18.2",
+    "semantic-release": "^17.3.7",
+    "sinon": "^9.0.0",
+    "standard": "^14.3.4",
+    "test-console": "^1.1.0"
+  },
+  "engines": {
+    "node": ">=8.0.0"
+  },
+  "files": [
+    "/bin",
+    "/npm-shrinkwrap.json",
+    "/oclif.manifest.json",
+    "/src",
+    "/wallets",
+    "/config"
+  ],
+  "homepage": "https://github.com/Permissionless-Software-Foundation/slp-cli-wallet",
+  "keywords": [
+    "oclif"
+  ],
+  "license": "MIT",
+  "main": "src/index.js",
+  "oclif": {
+    "commands": "./src/commands",
+    "bin": "slp-cli-wallet",
+    "plugins": [
+      "@oclif/plugin-help"
+    ]
+  },
+  "repository": "Permissionless-Software-Foundation/slp-cli-wallet",
+  "scripts": {
+    "postpack": "rm -f oclif.manifest.json",
+    "prepack": "oclif-dev manifest && oclif-dev readme",
+    "test": "npm run lint; TEST=unit nyc --reporter=text mocha --timeout 25000 test/commands/",
+    "test:integration": "RESTAPI=fullstack.cash TEST=integration nyc --reporter=text mocha --timeout 25000 test/commands/",
+    "test:integration:local": "RESTAPI=local TEST=integration nyc --reporter=text mocha  --timeout 25000",
+    "test:integration:decatur": "RESTAPI=decatur TEST=integration nyc --reporter=text mocha  --timeout 25000",
+    "test:temp": "TEST=integration mocha --timeout 25000 -g '#getAddressData'",
+    "coverage": "nyc report --reporter=text-lcov | coveralls",
+    "coverage:report": "nyc --reporter=html mocha test/commands/",
+    "version": "oclif-dev readme && git add README.md",
+    "semantic-release": "semantic-release",
+    "lint": "standard --env mocha --fix"
+  }
+}
