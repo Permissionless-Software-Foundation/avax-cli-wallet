@@ -7,12 +7,12 @@
 const assert = require('chai').assert
 const sinon = require('sinon')
 
-const CreateWallet = require('../../src/commands/create-wallet')
 const GetKey = require('../../src/commands/get-key')
 const config = require('../../config')
 
 const { bitboxMock } = require('../mocks/bitbox')
 const fs = require('fs')
+const testUtil = require('../util/test-util')
 
 const filename = `${__dirname}/../../wallets/test123.json`
 
@@ -45,6 +45,7 @@ describe('get-key', () => {
     getKey = new GetKey()
 
     // By default, use the mocking library instead of live calls.
+    delete require.cache[require.resolve('../../wallets/test123')]
     BITBOX = bitboxMock
     getKey.BITBOX = BITBOX
     await deleteFile()
@@ -62,8 +63,7 @@ describe('get-key', () => {
     // Mock methods that will be tested elsewhere.
     sandbox.stub(getKey, 'parse').returns({ flags: flags })
 
-    const newWallet = new CreateWallet()
-    await newWallet.createWallet(filename, 'testnet')
+    testUtil.restoreWallet('testnet')
     const result = await getKey.run()
     assert.include(result.cashAddress, 'bchtest:')
     assert.include(result.slpAddress, 'slptest:')
@@ -76,8 +76,7 @@ describe('get-key', () => {
     // Mock methods that will be tested elsewhere.
     sandbox.stub(getKey, 'parse').returns({ flags: flags })
 
-    const newWallet = new CreateWallet()
-    await newWallet.createWallet(filename, false)
+    testUtil.restoreWallet()
     const result = await getKey.run()
     assert.include(result.cashAddress, 'bitcoincash:')
     assert.include(result.slpAddress, 'simpleledger:')
@@ -138,8 +137,7 @@ describe('get-key', () => {
   it('create keys pair for mainnet', async () => {
     if (process.env.TEST !== 'unit') { getKey.BITBOX = new config.BCHLIB({ restURL: config.MAINNET_REST }) }
     // Create a mainnet wallet
-    const newWallet = new CreateWallet()
-    await newWallet.createWallet(filename, false)
+    testUtil.restoreWallet()
     // Generate a new address
     const result = await getKey.getPair(filename)
     assert.include(result.pub, 'bitcoincash:')
@@ -150,11 +148,8 @@ describe('get-key', () => {
     if (process.env.TEST !== 'unit') { getKey.BITBOX = new config.BCHLIB({ restURL: config.TESTNET_REST }) }
 
     // Create a testnet wallet
-    const createWallet = new CreateWallet()
-    const initialWalletInfo = await createWallet.createWallet(
-      filename,
-      'testnet'
-    )
+    testUtil.restoreWallet('testnet')
+    const initialWalletInfo = require('../../wallets/test123')
     // console.log(`initialWalletInfo: ${util.inspect(initialWalletInfo)}`)
 
     // Record the initial nextAddress property. This is going to be 1 for a new wallet.

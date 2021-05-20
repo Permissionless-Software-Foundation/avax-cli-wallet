@@ -8,7 +8,6 @@ const assert = require('chai').assert
 const sinon = require('sinon')
 const fs = require('fs')
 const CreateWallet = require('../../src/commands/create-wallet')
-const config = require('../../config')
 
 const { bitboxMock } = require('../mocks/bitbox')
 const filename = `${__dirname}/../../wallets/test123.json`
@@ -86,97 +85,23 @@ describe('create-wallet', () => {
     })
 
     it('should create a mainnet wallet file with the given name', async () => {
-      // Use the real library if this is not a unit test.
-      if (process.env.TEST !== 'unit') {
-        createWallet.bchjs = new config.BCHLIB({ restURL: config.MAINNET_REST })
-      }
-
       const walletData = await createWallet.createWallet(filename, undefined)
-      // console.log(`walletData: ${JSON.stringify(walletData, null, 2)}`)
 
-      assert.equal(walletData.network, 'mainnet', 'Expecting mainnet address')
+      assert.equal(walletData.network, 'mainnet', 'Expecting address')
       assert.hasAllKeys(walletData, [
         'network',
+        'type',
+        'seed',
         'mnemonic',
-        'balance',
-        'nextAddress',
-        'hasBalance',
-        'rootAddress',
-        'derivation',
-        'addresses',
-        'description'
+        'privateKey',
+        'addressString',
+        'description',
+        'assets',
+        'avaxAmount'
       ])
 
-      // hasBalance is an array of objects. Each object represents an address with
-      // a balance.
-      assert.isArray(walletData.hasBalance)
-
-      // For an integration test, ensure the rootAddress actually reflects mainnet.
-      if (process.env.TEST !== 'unit') {
-        assert.equal(walletData.rootAddress.indexOf('bitcoincash') > -1, true)
-      }
-    })
-
-    it('should create a mainnet wallet file when testnet is false', async () => {
-      // Use the real library if this is not a unit test.
-      if (process.env.TEST !== 'unit') {
-        createWallet.bchjs = new config.BCHLIB({ restURL: config.MAINNET_REST })
-      }
-
-      const walletData = await createWallet.createWallet(filename, false)
-
-      assert.equal(walletData.network, 'mainnet', 'Expecting mainnet address')
-      assert.hasAllKeys(walletData, [
-        'network',
-        'mnemonic',
-        'balance',
-        'nextAddress',
-        'hasBalance',
-        'rootAddress',
-        'derivation',
-        'addresses',
-        'description'
-      ])
-
-      // hasBalance is an array of objects. Each object represents an address with
-      // a balance.
-      assert.isArray(walletData.hasBalance)
-
-      // For an integration test, ensure the rootAddress actually reflects mainnet.
-      if (process.env.TEST !== 'unit') {
-        assert.equal(walletData.rootAddress.indexOf('bitcoincash') > -1, true)
-      }
-    })
-
-    it('should create a testnet wallet file with the given name', async () => {
-      // Use the real library if this is not a unit test.
-      if (process.env.TEST !== 'unit') {
-        createWallet.bchjs = new config.BCHLIB({ restURL: config.TESTNET_REST })
-      }
-
-      const walletData = await createWallet.createWallet(filename, 'testnet')
-
-      assert.equal(walletData.network, 'testnet', 'Expecting testnet address')
-      assert.hasAllKeys(walletData, [
-        'network',
-        'mnemonic',
-        'balance',
-        'nextAddress',
-        'hasBalance',
-        'rootAddress',
-        'derivation',
-        'addresses',
-        'description'
-      ])
-
-      // hasBalance is an array of objects. Each object represents an address with
-      // a balance.
-      assert.isArray(walletData.hasBalance)
-
-      // For an integration test, ensure the rootAddress actually reflects mainnet.
-      if (process.env.TEST !== 'unit') {
-        assert.equal(walletData.rootAddress.indexOf('bchtest') > -1, true)
-      }
+      // assets is an array of objects. Each object represents different asset
+      assert.isArray(walletData.assets)
     })
   })
 
@@ -208,62 +133,51 @@ describe('create-wallet', () => {
         name: 'test123'
       }
       // Mock methods that will be tested elsewhere.
-      sandbox.stub(createWallet, 'parse').returns({ flags: flags })
+      sandbox.stub(createWallet, 'parse').returns({ flags })
 
       const walletData = await createWallet.run()
 
       assert.equal(walletData.network, 'mainnet', 'Expecting mainnet address')
       assert.hasAllKeys(walletData, [
         'network',
+        'type',
+        'seed',
         'mnemonic',
-        'balance',
-        'nextAddress',
-        'hasBalance',
-        'rootAddress',
-        'derivation',
-        'addresses',
-        'description'
+        'privateKey',
+        'addressString',
+        'description',
+        'assets',
+        'avaxAmount'
       ])
-      // console.log(`data: ${util.inspect(walletData)}`)
     })
 
-    it('should adjust if testnet wallet is used', async () => {
+    it('should run the run() function and add a description', async () => {
       const flags = {
         name: 'test123',
-        testnet: true
+        description: 'test address'
       }
-
       // Mock methods that will be tested elsewhere.
-      sandbox.stub(createWallet, 'parse').returns({ flags: flags })
-      sandbox.stub(createWallet.localConfig, 'BCHLIB').returns(bitboxMock)
+      sandbox.stub(createWallet, 'parse').returns({ flags })
 
       const walletData = await createWallet.run()
 
-      assert.equal(walletData.network, 'testnet', 'Expecting mainnet address')
+      assert.equal(walletData.network, 'mainnet', 'Expecting mainnet address')
+      assert.equal(walletData.description, flags.description, 'Expecting equal description')
       assert.hasAllKeys(walletData, [
         'network',
+        'type',
+        'seed',
         'mnemonic',
-        'balance',
-        'nextAddress',
-        'hasBalance',
-        'rootAddress',
-        'derivation',
-        'addresses',
-        'description'
+        'privateKey',
+        'addressString',
+        'description',
+        'assets',
+        'avaxAmount'
       ])
-      // console.log(`data: ${util.inspect(walletData)}`)
     })
 
     it('should return 0 and display error.message on empty flags', async () => {
       sandbox.stub(createWallet, 'parse').returns({ flags: {} })
-
-      const result = await createWallet.run()
-
-      assert.equal(result, 0)
-    })
-
-    it('should handle an error without a message', async () => {
-      sandbox.stub(createWallet, 'parse').throws({})
 
       const result = await createWallet.run()
 

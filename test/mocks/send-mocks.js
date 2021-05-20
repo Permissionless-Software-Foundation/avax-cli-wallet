@@ -4,7 +4,32 @@
 
 'use strict'
 
-// bitcoincash:qrgeltnxk6zltsmr8sxmqcqrzwgcx3eztusrwgf0x3
+const avalanche = require('avalanche')
+const wallet = require('./avax-wallet.json')
+const { BN, BinTools } = avalanche
+const avm = require('avalanche/dist/apis/avm')
+const binTools = BinTools.getInstance()
+
+const avax = new avalanche.Avalanche('AVAX_IP', 9650)
+const xchain = avax.XChain()
+
+const addresses = [xchain.parseAddress(wallet.addressString)]
+
+const avaxString = 'FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z'
+const avaxID = binTools.cb58Decode(avaxString)
+
+const empty = new avm.UTXOSet()
+const sendUtxoSet = new avm.UTXOSet()
+const codecID = binTools.fromBNToBuffer(new BN(0))
+const smallUTXO = new avm.UTXO(
+  codecID,
+  binTools.cb58Decode('2TKfT1LrPbHYLdjiZYXRfLJ2L7yeELSyGykBikMji3mP92oW1h'),
+  binTools.cb58Decode('1111XiaYg'),
+  avaxID,
+  new avm.SECPTransferOutput(new BN(60000000), addresses)
+)
+sendUtxoSet.add(smallUTXO)
+
 const mockUnspentUtxo = [
   {
     address: 'bitcoincash:qpw8hqawqt7mwhpgcnxmgshqzve7mu7ypvgs7zz50t',
@@ -116,5 +141,10 @@ module.exports = {
   mockUnspentUtxo,
   mockSpentUtxo,
   mockSingleUtxos,
-  twoUtxos
+  twoUtxos,
+  sendUtxoSet,
+  empty,
+  avaxString,
+  avaxID
+
 }

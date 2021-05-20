@@ -7,7 +7,7 @@
 const assert = require('chai').assert
 const sinon = require('sinon')
 
-const CreateWallet = require('../../src/commands/create-wallet')
+const testUtil = require('../util/test-util')
 const GetAddress = require('../../src/commands/get-address')
 const config = require('../../config')
 
@@ -77,11 +77,8 @@ describe('get-address', () => {
       }
 
       // Create a testnet wallet
-      const createWallet = new CreateWallet()
-      const initialWalletInfo = await createWallet.createWallet(
-        filename,
-        'testnet'
-      )
+      testUtil.restoreWallet('testnet')
+      const initialWalletInfo = require('../../wallets/test123')
 
       // Record the initial nextAddress property. This is going to be 1 for a new wallet.
       const firstAddressIndex = initialWalletInfo.nextAddress
@@ -109,8 +106,7 @@ describe('get-address', () => {
       }
 
       // Create a testnet wallet
-      const createWallet = new CreateWallet()
-      await createWallet.createWallet(filename, 'testnet')
+      testUtil.restoreWallet('testnet')
 
       // Generate a new address
       const addr = await getAddress.getAddress(filename)
@@ -127,8 +123,7 @@ describe('get-address', () => {
       }
 
       // Create a testnet wallet
-      const createWallet = new CreateWallet()
-      await createWallet.createWallet(filename, 'testnet')
+      testUtil.restoreWallet('testnet')
 
       const flags = {
         token: true
@@ -150,8 +145,7 @@ describe('get-address', () => {
       }
 
       // Create a testnet wallet
-      const createWallet = new CreateWallet()
-      await createWallet.createWallet(filename)
+      testUtil.restoreWallet()
 
       // Generate a new address
       const addr = await getAddress.getAddress(filename)
@@ -168,8 +162,7 @@ describe('get-address', () => {
       }
 
       // Create a testnet wallet
-      const createWallet = new CreateWallet()
-      await createWallet.createWallet(filename)
+      testUtil.restoreWallet()
 
       const flags = {
         token: true
@@ -208,8 +201,7 @@ describe('get-address', () => {
         name: 'test123'
       }
       // Mock methods that will be tested elsewhere.
-      const createWallet = new CreateWallet()
-      await createWallet.createWallet(filename)
+      testUtil.restoreWallet()
 
       sandbox.stub(getAddress, 'parse').returns({ flags: flags })
 
@@ -223,8 +215,7 @@ describe('get-address', () => {
         name: 'test123'
       }
       // Mock methods that will be tested elsewhere.
-      const createWallet = new CreateWallet()
-      await createWallet.createWallet(filename, 'testnet')
+      testUtil.restoreWallet('testnet')
 
       sandbox.stub(getAddress, 'parse').returns({ flags: flags })
 
@@ -241,8 +232,7 @@ describe('get-address', () => {
       }
 
       // Mock methods that will be tested elsewhere.
-      const createWallet = new CreateWallet()
-      await createWallet.createWallet(filename, 'testnet')
+      testUtil.restoreWallet('testnet')
       sandbox.stub(getAddress, 'parse').returns({ flags: flags })
 
       const addr = await getAddress.run()
