@@ -1,31 +1,18 @@
 /*
   oclif command to send BCH to an address.
-
-  The spending of UTXOs is optimized for privacy. The UTXO selected is equal to
-  or bigger than the amount specified, but as close to it as possible. Change is
-  always sent to a new address.
-
-  This method of selecting UTXOs can leave a lot of dust UTXOs lying around in
-  the wallet. It is assumed the user will consolidate the dust UTXOs periodically
-  with an online service like Consolidating CoinJoin or CashShuffle, as
-  described here:
-  https://gist.github.com/christroutner/8d54597da652fe2affa5a7230664bc45
 */
 
 'use strict'
 
-const GetAddress = require('./get-address')
 const UpdateBalances = require('./update-balances')
-const config = require('../../config')
+const globalConfig = require('../../config')
 
 const AppUtils = require('../util')
 const appUtils = new AppUtils()
 
-// Mainnet by default
-const bchjs = new config.BCHLIB({
-  restURL: config.MAINNET_REST,
-  apiToken: config.JWT
-})
+const { Avalanche, BinTools, BN } = require('avalanche')
+const { KeyChain } = require('avalanche/dist/apis/evm')
+const avm = require('avalanche/dist/apis/avm')
 
 const { Command, flags } = require('@oclif/command')
 
@@ -34,8 +21,14 @@ class Send extends Command {
     super(argv, config)
     // _this = this
 
-    this.bchjs = bchjs
+    this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
+    this.bintools = BinTools.getInstance()
+    this.xchain = this.ava.XChain()
     this.appUtils = appUtils
+    this.KeyChain = KeyChain
+    this.avm = avm
+    this.BN = BN
+    this.updateBalances = new UpdateBalances(undefined)
   }
 
   async run () {
@@ -46,225 +39,152 @@ class Send extends Command {
       this.validateFlags(flags)
 
       const name = flags.name // Name of the wallet.
-      const bch = flags.bch // Amount to send in BCH.
+      const avax = flags.avax // Amount to send in AVAX.
       const sendToAddr = flags.sendAddr // The address to send to.
+      if (!flags.memo) {
+        flags.memo = ''
+      }
 
       // Open the wallet data file.
       const filename = `${__dirname}/../../wallets/${name}.json`
       let walletInfo = this.appUtils.openWallet(filename)
-      walletInfo.name = name
-
-      // Determine if this is a testnet wallet or a mainnet wallet.
-      if (walletInfo.network === 'testnet') {
-        this.bchjs = new config.BCHLIB({ restURL: config.TESTNET_REST })
-        this.appUtils = new AppUtils({ bchjs: this.bchjs })
-      }
 
       // Update balances before sending.
-      const updateBalances = new UpdateBalances(undefined, {
-        bchjs: this.bchjs
-      })
-      updateBalances.bchjs = this.bchjs
-      walletInfo = await updateBalances.updateBalances(flags)
 
-      // Get info on UTXOs controlled by this wallet.
-      // const utxos = await this.appUtils.getUTXOs(walletInfo)
-      const utxos = walletInfo.BCHUtxos
-      // console.log(`send utxos: ${JSON.stringify(utxos, null, 2)}`)
+      walletInfo = await this.updateBalances.updateBalances(flags)
 
-      // Select optimal UTXO
-      const utxo = await this.selectUTXO(bch, utxos)
-      // console.log(`selected utxo: ${util.inspect(utxo)}`)
+      // Get info on assets controlled by this address
+      const avaxAmount = walletInfo.avaxAmount
 
-      // Exit if there is no UTXO big enough to fulfill the transaction.
-      if (!utxo.amount) {
-        this.log('Could not find a UTXO big enough for this transaction.')
-        return
+      this.log(`Existing balance: ${walletInfo.avaxAmount} AVAX`)
+      if (avaxAmount <= avax) {
+        throw new Error('There\'s not enough avax to perform the transaction')
       }
 
-      // Generate a new address, for sending change to.
-      const getAddress = new GetAddress()
-      getAddress.bchjs = this.bchjs
-      const changeAddress = await getAddress.getAddress(filename)
-      // console.log(`changeAddress: ${changeAddress}`)
-
-      // Send the BCH, transfer change to the new address
-      const hex = await this.sendBCH(
-        utxo,
-        bch,
-        changeAddress,
+      // Send the AVAX
+      const tx = await this.sendAvax(
+        avax,
         sendToAddr,
-        walletInfo
+        walletInfo,
+        flags.memo
       )
-      // console.log(`hex: ${hex}`)
 
-      const txid = await this.appUtils.broadcastTx(hex)
+      const txid = await this.appUtils.broadcastAvaxTx(tx)
 
-      this.appUtils.displayTxid(txid, walletInfo.network)
+      this.appUtils.displayAvaxTxid('done')
+      return txid
     } catch (err) {
-      // if (err.message) console.log(err.message)
-      // else console.log(`Error in .run: `, err)
       console.log('Error in send.js/run(): ', err)
+      return 0
     }
   }
 
-  // Sends BCH to
-  async sendBCH (utxo, bch, changeAddress, sendToAddr, walletInfo) {
+  // Sends Avax to
+  async sendAvax (avaxAmount, sendToAddr, walletInfo, memo) {
     try {
-      // console.log(`utxo: ${util.inspect(utxo)}`)
+      sendToAddr = this.xchain.parseAddress(sendToAddr)
 
-      sendToAddr = this.bchjs.SLP.Address.toCashAddress(sendToAddr)
+      // Get the node information
+      const xkeyChain = new this.KeyChain(this.ava.getHRP(), 'X')
+      xkeyChain.importKey(walletInfo.privateKey)
 
-      // instance of transaction builder
-      let transactionBuilder
-      if (walletInfo.network === 'testnet') {
-        transactionBuilder = new this.bchjs.TransactionBuilder('testnet')
-      } else transactionBuilder = new this.bchjs.TransactionBuilder()
+      const avaxIDBuffer = await this.xchain.getAVAXAssetID()
+      const { denomination } = await this.xchain.getAssetDescription(avaxIDBuffer)
+      const addresses = xkeyChain.getAddresses()
+      const addressStrings = xkeyChain.getAddressStrings()
 
-      const satoshisToSend = Math.floor(bch * 100000000)
-      // console.log(`Amount to send in satoshis: ${satoshisToSend}`)
-      const originalAmount = utxo.satoshis
+      // encode memo
+      let memoBuffer
+      if (!memo) {
+        memoBuffer = Buffer.from(memo)
+      }
 
-      const vout = utxo.vout
-      const txid = utxo.txid
+      const { utxos: utxoSet } = await this.xchain.getUTXOs(addressStrings)
+      const utxos = utxoSet.getAllUTXOs()
 
-      // add input with txid and index of vout
-      transactionBuilder.addInput(txid, vout)
+      if (!utxos.length) {
+        throw new Error('There are no UTXOs in the address')
+      }
+      // get the token information
 
-      // get byte count to calculate fee. paying 1 sat/byte
-      const byteCount = this.bchjs.BitcoinCash.getByteCount(
-        { P2PKH: 1 },
-        { P2PKH: 2 }
+      const balance = utxoSet.getBalance(addresses, avaxIDBuffer)
+      const fee = this.xchain.getDefaultTxFee()
+
+      const num = avaxAmount * Math.pow(10, denomination)
+      const amount = new this.BN(num)
+      const remainder = balance.sub(fee).sub(amount)
+
+      if (remainder.isNeg()) {
+        throw new Error('Not enough founds to pay for transaction')
+      }
+
+      // get the inputs for the transcation
+      const inputs = utxos.reduce((txInputs, utxo) => {
+        // TypeID 7 is a transaction utxo, everything else gets skipped
+        const utxoType = utxo.getOutput().getTypeID()
+        const isAvaxAsset = utxo.getAssetID().toString('hex') === avaxIDBuffer.toString('hex')
+        if (utxoType !== 7 || !isAvaxAsset) {
+          return txInputs
+        }
+
+        const amountOutput = utxo.getOutput()
+        const amt = amountOutput.getAmount().clone()
+        const txid = utxo.getTxID()
+        const outputidx = utxo.getOutputIdx()
+
+        const transferInput = new this.avm.SECPTransferInput(amt)
+        transferInput.addSignatureIdx(0, addresses[0])
+        const input = new this.avm.TransferableInput(
+          txid,
+          outputidx,
+          avaxIDBuffer,
+          transferInput
+        )
+        txInputs.push(input)
+        return txInputs
+      }, [])
+
+      // get the desired outputs for the transaction
+      const outputs = []
+      const firstTransferOutput = new this.avm.SECPTransferOutput(
+        amount,
+        [sendToAddr]
       )
-      // console.log(`byteCount: ${byteCount}`)
-      const satoshisPerByte = 1.1
-      const txFee = Math.floor(satoshisPerByte * byteCount)
-      // console.log(`txFee: ${txFee} satoshis\n`)
-
-      // amount to send back to the sending address. It's the original amount - 1 sat/byte for tx size
-      const remainder = originalAmount - satoshisToSend - txFee
-      // console.log(`remainder: ${remainder}`)
-
-      // Debugging.
-      /*
-      console.log(
-        `Sending original UTXO amount of ${originalAmount} satoshis from address ${changeAddress}`
+      const firstTransferableOutput = new this.avm.TransferableOutput(
+        avaxIDBuffer,
+        firstTransferOutput
       )
-      console.log(
-        `Sending ${satoshisToSend} satoshis to recieving address ${sendToAddr}`
-      )
-      console.log(
-        `Sending remainder amount of ${remainder} satoshis to new address ${changeAddress}`
-      )
-      console.log(`Paying a transaction fee of ${txFee} satoshis`)
-      */
+      // Add the first AVAX output = the amount to send to the other address
+      outputs.push(firstTransferableOutput)
 
-      // add output w/ address and amount to send
-      transactionBuilder.addOutput(
-        this.bchjs.Address.toLegacyAddress(sendToAddr),
-        satoshisToSend
+      // add the remainder as output to be sent back to the address
+      if (!remainder.isZero()) {
+        const remainderTransferOutput = new avm.SECPTransferOutput(
+          remainder,
+          addresses
+        )
+        const remainderTransferableOutput = new avm.TransferableOutput(
+          avaxIDBuffer,
+          remainderTransferOutput
+        )
+        outputs.push(remainderTransferableOutput)
+      }
+
+      // Build the transcation
+      const baseTx = new this.avm.BaseTx(
+        this.ava.getNetworkID(),
+        this.bintools.cb58Decode(this.xchain.getBlockchainID()),
+        outputs,
+        inputs,
+        memoBuffer
       )
-      transactionBuilder.addOutput(
-        this.bchjs.Address.toLegacyAddress(changeAddress),
-        remainder
-      )
+      const unsignedTx = new this.avm.UnsignedTx(baseTx)
 
-      // Generate a keypair from the change address.
-      const change = await this.appUtils.changeAddrFromMnemonic(
-        walletInfo,
-        utxo.hdIndex
-      )
-      // console.log(`change: ${JSON.stringify(change, null, 2)}`)
-      const keyPair = this.bchjs.HDNode.toKeyPair(change)
-
-      // Sign the transaction with the HD node.
-      let redeemScript
-      transactionBuilder.sign(
-        0,
-        keyPair,
-        redeemScript,
-        transactionBuilder.hashTypes.SIGHASH_ALL,
-        originalAmount
-      )
-
-      // build tx
-      const tx = transactionBuilder.build()
-
-      // output rawhex
-      const hex = tx.toHex()
-      // console.log(`Transaction raw hex: `)
-      // console.log(hex)
-
-      return hex
+      return unsignedTx.sign(xkeyChain)
     } catch (err) {
-      console.log('Error in sendBCH()')
+      console.log('Error in sendAvax()')
       throw err
     }
-  }
-
-  // Selects a UTXO from an array of UTXOs based on this optimization criteria:
-  // 1. The UTXO must be larger than or equal to the amount of BCH to send.
-  // 2. The UTXO should be as close to the amount of BCH as possible.
-  //    i.e. as small as possible
-  // 3. Full node must validate that the UTXO has not been spent.
-  // Returns a single UTXO object.
-  async selectUTXO (bch, utxos) {
-    let candidateUTXO = {}
-
-    const bchSatoshis = bch * 100000000
-    const total = bchSatoshis + 250 // Add 250 satoshis to cover TX fee.
-
-    // console.log(`utxos: ${JSON.stringify(utxos, null, 2)}`)
-
-    // Loop through each address.
-    for (var i = 0; i < utxos.length; i++) {
-      const thisAddr = utxos[i]
-
-      // Loop through each UTXO for each address.
-      for (let j = 0; j < thisAddr.utxos.length; j++) {
-        const thisUTXO = thisAddr.utxos[j]
-
-        // Ensure the Electrumx or Blockbook UTXO has a satoshis property.
-        if (thisUTXO.value && !thisUTXO.satoshis) {
-          thisUTXO.satoshis = Number(thisUTXO.value)
-        }
-
-        // The UTXO must be greater than or equal to the send amount.
-        if (thisUTXO.satoshis >= total) {
-          // console.log(`thisUtxo: ${JSON.stringify(thisUTXO, null, 2)}`)
-
-          // Skip if the UTXO is invalid
-          const isValid = await this.appUtils.isValidUtxo(thisUTXO)
-          if (!isValid) {
-            console.log(
-              'warning: invalid UTXO found. You may need to wait for the indexer to catch up.'
-            )
-            // console.log(`thisUTXO: ${JSON.stringify(thisUTXO, null, 2)}`)
-            continue
-          }
-          // console.log(`isValid: `, isValid)
-
-          // Skip if change would less than the dust amount.
-          if (thisUTXO.satoshis - bchSatoshis < 546) continue
-
-          // Automatically assign if the candidateUTXO is an empty object.
-          if (!candidateUTXO.satoshis) {
-            candidateUTXO = thisUTXO
-            continue
-
-            // Replace the candidate if the current UTXO is closer to the send amount.
-          } else if (candidateUTXO.satoshis > thisUTXO.satoshis) {
-            candidateUTXO = thisUTXO
-          }
-        }
-      }
-    }
-
-    if (candidateUTXO.satoshis) {
-      candidateUTXO.amount = candidateUTXO.satoshis / 100000000
-    }
-
-    return candidateUTXO
   }
 
   // Validate the proper flags are passed in.
@@ -275,26 +195,33 @@ class Send extends Command {
       throw new Error('You must specify a wallet with the -n flag.')
     }
 
-    const bch = flags.bch
-    if (isNaN(Number(bch))) {
-      throw new Error('You must specify a quantity in BCH with the -b flag.')
+    const avax = flags.avax
+    if (isNaN(Number(avax))) {
+      throw new Error('You must specify a quantity in AVAX with the -q flag.')
     }
 
     const sendAddr = flags.sendAddr
     if (!sendAddr || sendAddr === '') {
       throw new Error('You must specify a send-to address with the -a flag.')
     }
+    const addrBuffer = this.xchain.parseAddress(sendAddr)
+    const isValid = Boolean(addrBuffer)
+    if (!isValid) {
+      // console.log(sendAddr)
+      throw new Error('You must specify a valid avalanche address with the -a flag')
+    }
 
     return true
   }
 }
 
-Send.description = 'Send an amount of BCH'
+Send.description = 'Send an amount of AVAX'
 
 Send.flags = {
   name: flags.string({ char: 'n', description: 'Name of wallet' }),
-  bch: flags.string({ char: 'b', description: 'Quantity in BCH' }),
-  sendAddr: flags.string({ char: 'a', description: 'Cash address to send to' })
+  avax: flags.string({ char: 'q', description: 'Quantity in nAVAX (1 AVAX = 1x10^9 nAvax)' }),
+  sendAddr: flags.string({ char: 'a', description: 'AVAX address to send to' }),
+  memo: flags.string({ char: 'm', description: 'A memo to attach to the transaction' })
 }
 
 module.exports = Send

@@ -37,6 +37,7 @@ describe('#burn-tokens', () => {
     sandbox = sinon.createSandbox()
 
     burnTokens = new BurnTokens()
+    burnTokens.send.selectUTXO = () => {}
     burnTokens.BITBOX = BITBOX
   })
 

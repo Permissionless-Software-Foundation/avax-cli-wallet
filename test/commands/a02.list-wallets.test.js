@@ -2,7 +2,7 @@
 
 // const { expect, test } = require("@oclif/test")
 const assert = require('chai').assert
-const CreateWallet = require('../../src/commands/create-wallet')
+const testUtil = require('../util/test-util')
 const ListWallets = require('../../src/commands/list-wallets')
 const filename = `${__dirname}/../../wallets/test123.json`
 const fs = require('fs')
@@ -27,8 +27,8 @@ describe('list-wallets', () => {
 
   it('should correctly identify a mainnet wallet', async () => {
     // Create a mainnet wallet.
-    const createWallet = new CreateWallet()
-    await createWallet.createWallet(filename, false)
+
+    testUtil.restoreWallet()
 
     const listWallets = new ListWallets()
     const data = listWallets.parseWallets()
@@ -37,15 +37,12 @@ describe('list-wallets', () => {
     const testWallet = data.find(wallet => wallet[0].indexOf('test123') > -1)
 
     const network = testWallet[1]
-    const balance = testWallet[2]
     assert.equal(network, 'mainnet', 'Correct network detected.')
-    assert.equal(balance, 0, 'Should have a zero balance')
   })
 
   it('should correctly identify a testnet wallet', async () => {
     // Create a testnet wallet
-    const createWallet = new CreateWallet()
-    await createWallet.createWallet(filename, 'testnet')
+    testUtil.restoreWallet('testnet')
 
     const listWallets = new ListWallets()
     const data = listWallets.parseWallets()
@@ -54,14 +51,11 @@ describe('list-wallets', () => {
     const testWallet = data.find(wallet => wallet[0].indexOf('test123') > -1)
 
     const network = testWallet[1]
-    const balance = testWallet[2]
     assert.equal(network, 'testnet', 'Correct network detected.')
-    assert.equal(balance, 0, 'Should have a zero balance')
   })
 
   it('should display wallets table', async () => {
-    const createWallet = new CreateWallet()
-    await createWallet.createWallet(filename, 'testnet')
+    testUtil.restoreWallet('testnet')
 
     const listWallets = new ListWallets()
     Promise.resolve(listWallets.run()).then(function (table) {
@@ -72,8 +66,7 @@ describe('list-wallets', () => {
   })
 
   it('should return empty array on missing wallets data', async () => {
-    const createWallet = new CreateWallet()
-    await createWallet.createWallet(filename, 'testnet')
+    testUtil.restoreWallet('testnet')
 
     const listWallets = new ListWallets()
     // simulate no files found

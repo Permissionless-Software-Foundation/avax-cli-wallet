@@ -59,4 +59,11 @@ if (RESTAPI === 'decatur') {
   config.RESTAPI = 'decatur'
 }
 
+config.AVAX_IP = process.env.AVAX_IP ?? 'AVAX'
+config.AVAX_PORT = process.env.AVAX_PORT ?? '9650'
+
+// taken from avalanche-wallet
+const AVA_TOKEN_INDEX = '9000'
+config.AVA_ACCOUNT_PATH = `m/44'/${AVA_TOKEN_INDEX}'/0'`
+
 module.exports = config

@@ -1,7 +1,6 @@
 /*
-  Creates a new HD wallet. Save the 12-word Mnemonic private key to a .json file.
-  https://developer.bitcoin.com/mastering-bitcoin-cash/3-keys-addresses-wallets/#mnemonic-code-words
-
+  Creates a new HD wallet. Save the 24-word Mnemonic private key to a .json file.
+  There isn't any official documentation on how to do the mnemonic with avalanche yet
 */
 
 'use strict'
@@ -10,13 +9,13 @@ const AppUtils = require('../util')
 const appUtils = new AppUtils()
 
 const globalConfig = require('../../config')
+const HDKey = require('hdkey')
+const bip39 = require('bip39')
+
+const { Avalanche, BinTools } = require('avalanche')
+const { KeyChain } = require('avalanche/dist/apis/evm')
 
 // Mainnet by default
-const bchjs = new globalConfig.BCHLIB({
-  restURL: globalConfig.MAINNET_REST,
-  apiToken: globalConfig.JWT
-})
-
 const { Command, flags } = require('@oclif/command')
 
 const fs = require('fs')
@@ -28,9 +27,12 @@ class CreateWallet extends Command {
     super(argv, config)
     // _this = this
 
-    this.bchjs = bchjs
     this.fs = fs
     this.localConfig = globalConfig
+    this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
+    this.bintools = BinTools.getInstance()
+    this.bip39 = bip39
+    this.HDKey = HDKey
   }
 
   async run () {
@@ -40,81 +42,63 @@ class CreateWallet extends Command {
       // Validate input flags
       this.validateFlags(flags)
 
-      // Determine if this is a testnet wallet or a mainnet wallet.
-      if (flags.testnet) {
-        this.bchjs = new this.localConfig.BCHLIB({ restURL: this.localConfig.TESTNET_REST })
-      }
-
       const filename = `${__dirname}/../../wallets/${flags.name}.json`
 
-      if (!flags.description) flags.description = ''
+      if (!flags.description) {
+        flags.description = ''
+      }
 
-      return this.createWallet(filename, flags.testnet, flags.description)
+      return this.createWallet(filename, flags.description)
     } catch (err) {
-      if (err.message) console.log(err.message)
-      else console.log('Error in create-wallet.js/run(): ', err)
+      console.log('Error in create-wallet.js/run(): ', err)
 
       return 0
     }
   }
 
-  // testnet is a boolean.
-  async createWallet (filename, testnet, desc) {
+  async createWallet (filename, desc) {
     try {
-      if (!filename || filename === '') throw new Error('filename required.')
-      if (this.fs.existsSync(filename)) throw new Error('filename already exist')
-
-      // console.log(filename)
-      // Initialize the wallet data object that will be saved to a file.
-      const walletData = {}
-      if (testnet) walletData.network = 'testnet'
-      else walletData.network = 'mainnet'
-
-      // create 128 bit (12 word) BIP39 mnemonic
-      const mnemonic = this.bchjs.Mnemonic.generate(
-        128,
-        this.bchjs.Mnemonic.wordLists().english
-      )
-      walletData.mnemonic = mnemonic
-
-      // root seed buffer
-      const rootSeed = await this.bchjs.Mnemonic.toSeed(mnemonic)
-
-      // master HDNode
-      let masterHDNode = this.bchjs.HDNode.fromSeed(rootSeed)
-      if (testnet) {
-        masterHDNode = this.bchjs.HDNode.fromSeed(rootSeed, 'testnet')
+      if (!filename || filename === '') {
+        throw new Error('filename required.')
       }
 
-      // Use the 245 derivation path by default.
-      walletData.derivation = 245
+      if (this.fs.existsSync(filename)) {
+        throw new Error('filename already exist')
+      }
 
-      // HDNode of BIP44 account
-      const account = this.bchjs.HDNode.derivePath(
-        masterHDNode,
-        `m/44'/${walletData.derivation}'/0'`
-      )
+      // generate the nemonic
+      const mnemonic = this.bip39.generateMnemonic(256)
+      // parse them into a seed
+      const seed = this.bip39.mnemonicToSeedSync(mnemonic)
+      // create the master node and derive it
+      const masterHdKey = this.HDKey.fromMasterSeed(seed)
+      const accountHdKey = masterHdKey.derive(this.localConfig.AVA_ACCOUNT_PATH + '/0/0')
 
-      // derive the first external change address HDNode which is going to spend utxo
-      const change = this.bchjs.HDNode.derivePath(account, '0/0')
+      // Get the node information
+      const xkeyChain = new KeyChain(this.ava.getHRP(), 'X')
+      const keypair = xkeyChain.importKey(accountHdKey.privateKey)
+      const addressString = keypair.getAddressString()
+      const privKey = 'PrivateKey-' + this.bintools.cb58Encode(accountHdKey.privateKey)
 
-      // get the cash address
-      walletData.rootAddress = this.bchjs.HDNode.toCashAddress(change)
+      const walletData = {
+        network: 'mainnet',
+        type: 'mnemonic',
+        seed: seed.toString('hex'),
+        mnemonic,
+        addressString,
+        privateKey: privKey,
+        description: desc ?? '',
+        assets: [],
+        avaxAmount: 0
+      }
 
-      // Initialize other data.
-      walletData.balance = 0
-      walletData.nextAddress = 1
-      walletData.hasBalance = []
-      walletData.addresses = []
-      walletData.description = desc
-
-      // Write out the basic information into a json file for other apps to use.
-      // const filename = `${__dirname}/../../wallets/${name}.json`
       await appUtils.saveWallet(filename, walletData)
 
       return walletData
     } catch (err) {
-      if (err.code !== 'EEXIT') console.log('Error in createWallet().')
+      if (err.code !== 'EEXIT') {
+        console.log('Error in createAvaxWallet().')
+      }
       throw err
     }
   }
@@ -134,7 +118,6 @@ class CreateWallet extends Command {
 CreateWallet.description = 'Generate a new HD Wallet.'
 
 CreateWallet.flags = {
-  testnet: flags.boolean({ char: 't', description: 'Create a testnet wallet' }),
   name: flags.string({ char: 'n', description: 'Name of wallet' }),
   description: flags.string({
     char: 'd',
