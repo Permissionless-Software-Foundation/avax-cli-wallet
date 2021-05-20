@@ -29,7 +29,8 @@ class CreateWallet extends Command {
 
     this.fs = fs
     this.localConfig = globalConfig
-    this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
+    // this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
+    this.ava = new Avalanche('api.avax.network', 443, 'https')
     this.bintools = BinTools.getInstance()
     this.bip39 = bip39
     this.HDKey = HDKey
@@ -72,13 +73,16 @@ class CreateWallet extends Command {
       const seed = this.bip39.mnemonicToSeedSync(mnemonic)
       // create the master node and derive it
       const masterHdKey = this.HDKey.fromMasterSeed(seed)
-      const accountHdKey = masterHdKey.derive(this.localConfig.AVA_ACCOUNT_PATH + '/0/0')
+      const accountHdKey = masterHdKey.derive(
+        this.localConfig.AVA_ACCOUNT_PATH + '/0/0'
+      )
 
       // Get the node information
       const xkeyChain = new KeyChain(this.ava.getHRP(), 'X')
       const keypair = xkeyChain.importKey(accountHdKey.privateKey)
       const addressString = keypair.getAddressString()
-      const privKey = 'PrivateKey-' + this.bintools.cb58Encode(accountHdKey.privateKey)
+      const privKey =
+        'PrivateKey-' + this.bintools.cb58Encode(accountHdKey.privateKey)
 
       const walletData = {
         network: 'mainnet',

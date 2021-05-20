@@ -7,7 +7,7 @@
 const AppUtils = require('../util')
 const appUtils = new AppUtils()
 
-const globalConfig = require('../../config')
+// const globalConfig = require('../../config')
 
 const { Avalanche, BinTools } = require('avalanche')
 
@@ -18,7 +18,8 @@ class UpdateBalances extends Command {
     super(argv, config)
 
     // Default libraries.
-    this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
+    // this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
+    this.ava = new Avalanche('api.avax.network', 443, 'https')
     this.appUtils = appUtils
     this.bintools = BinTools.getInstance()
     this.xchain = this.ava.XChain()

@@ -5,7 +5,7 @@
 'use strict'
 
 const UpdateBalances = require('./update-balances')
-const globalConfig = require('../../config')
+// const globalConfig = require('../../config')
 
 const AppUtils = require('../util')
 const appUtils = new AppUtils()
@@ -21,7 +21,8 @@ class Send extends Command {
     super(argv, config)
     // _this = this
 
-    this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
+    // this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
+    this.ava = new Avalanche('api.avax.network', 443, 'https')
     this.bintools = BinTools.getInstance()
     this.xchain = this.ava.XChain()
     this.appUtils = appUtils
@@ -58,16 +59,11 @@ class Send extends Command {
 
       this.log(`Existing balance: ${walletInfo.avaxAmount} AVAX`)
       if (avaxAmount <= avax) {
-        throw new Error('There\'s not enough avax to perform the transaction')
+        throw new Error("There's not enough avax to perform the transaction")
       }
 
       // Send the AVAX
-      const tx = await this.sendAvax(
-        avax,
-        sendToAddr,
-        walletInfo,
-        flags.memo
-      )
+      const tx = await this.sendAvax(avax, sendToAddr, walletInfo, flags.memo)
 
       const txid = await this.appUtils.broadcastAvaxTx(tx)
 
@@ -89,7 +85,9 @@ class Send extends Command {
       xkeyChain.importKey(walletInfo.privateKey)
 
       const avaxIDBuffer = await this.xchain.getAVAXAssetID()
-      const { denomination } = await this.xchain.getAssetDescription(avaxIDBuffer)
+      const { denomination } = await this.xchain.getAssetDescription(
+        avaxIDBuffer
+      )
       const addresses = xkeyChain.getAddresses()
       const addressStrings = xkeyChain.getAddressStrings()
 
@@ -122,7 +120,8 @@ class Send extends Command {
       const inputs = utxos.reduce((txInputs, utxo) => {
         // TypeID 7 is a transaction utxo, everything else gets skipped
         const utxoType = utxo.getOutput().getTypeID()
-        const isAvaxAsset = utxo.getAssetID().toString('hex') === avaxIDBuffer.toString('hex')
+        const isAvaxAsset =
+          utxo.getAssetID().toString('hex') === avaxIDBuffer.toString('hex')
         if (utxoType !== 7 || !isAvaxAsset) {
           return txInputs
         }
@@ -146,10 +145,9 @@ class Send extends Command {
 
       // get the desired outputs for the transaction
       const outputs = []
-      const firstTransferOutput = new this.avm.SECPTransferOutput(
-        amount,
-        [sendToAddr]
-      )
+      const firstTransferOutput = new this.avm.SECPTransferOutput(amount, [
+        sendToAddr
+      ])
       const firstTransferableOutput = new this.avm.TransferableOutput(
         avaxIDBuffer,
         firstTransferOutput
@@ -208,7 +206,9 @@ class Send extends Command {
     const isValid = Boolean(addrBuffer)
     if (!isValid) {
       // console.log(sendAddr)
-      throw new Error('You must specify a valid avalanche address with the -a flag')
+      throw new Error(
+        'You must specify a valid avalanche address with the -a flag'
+      )
     }
 
     return true
@@ -219,9 +219,15 @@ Send.description = 'Send an amount of AVAX'
 
 Send.flags = {
   name: flags.string({ char: 'n', description: 'Name of wallet' }),
-  avax: flags.string({ char: 'q', description: 'Quantity in nAVAX (1 AVAX = 1x10^9 nAvax)' }),
+  avax: flags.string({
+    char: 'q',
+    description: 'Quantity in nAVAX (1 AVAX = 1x10^9 nAvax)'
+  }),
   sendAddr: flags.string({ char: 'a', description: 'AVAX address to send to' }),
-  memo: flags.string({ char: 'm', description: 'A memo to attach to the transaction' })
+  memo: flags.string({
+    char: 'm',
+    description: 'A memo to attach to the transaction'
+  })
 }
 
 module.exports = Send
