@@ -81,18 +81,16 @@ class CreateWallet extends Command {
       const xkeyChain = new KeyChain(this.ava.getHRP(), 'X')
       const keypair = xkeyChain.importKey(accountHdKey.privateKey)
       const addressString = keypair.getAddressString()
-      const privKey =
-        'PrivateKey-' + this.bintools.cb58Encode(accountHdKey.privateKey)
+      // const privKey = 'PrivateKey-' + this.bintools.cb58Encode(accountHdKey.privateKey)
 
       const walletData = {
         network: 'mainnet',
         type: 'mnemonic',
-        seed: seed.toString('hex'),
         mnemonic,
-        addressString,
-        privateKey: privKey,
         description: desc ?? '',
-        assets: [],
+        balances: [],
+        addresses: { 0: addressString },
+        nextAddress: 1,
         avaxAmount: 0
       }
 

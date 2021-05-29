@@ -1,5 +1,15 @@
 /*
   oclif command to send BCH to an address.
+
+  The spending of UTXOs is optimized for privacy. The UTXO selected is equal to
+  or bigger than the amount specified, but as close to it as possible. Change is
+  always sent to a new address.
+
+  This method of selecting UTXOs can leave a lot of dust UTXOs lying around in
+  the wallet. It is assumed the user will consolidate the dust UTXOs periodically
+  with an online service like Consolidating CoinJoin or CashShuffle, as
+  described here:
+  https://gist.github.com/christroutner/8d54597da652fe2affa5a7230664bc45
 */
 
 'use strict'
@@ -9,9 +19,9 @@ const UpdateBalances = require('./update-balances')
 
 const AppUtils = require('../util')
 const appUtils = new AppUtils()
+const GetAddress = require('./get-address')
 
 const { Avalanche, BinTools, BN } = require('avalanche')
-const { KeyChain } = require('avalanche/dist/apis/evm')
 const avm = require('avalanche/dist/apis/avm')
 
 const { Command, flags } = require('@oclif/command')
@@ -26,7 +36,6 @@ class Send extends Command {
     this.bintools = BinTools.getInstance()
     this.xchain = this.ava.XChain()
     this.appUtils = appUtils
-    this.KeyChain = KeyChain
     this.avm = avm
     this.BN = BN
     this.updateBalances = new UpdateBalances(undefined)
@@ -54,20 +63,32 @@ class Send extends Command {
 
       walletInfo = await this.updateBalances.updateBalances(flags)
 
-      // Get info on assets controlled by this address
-      const avaxAmount = walletInfo.avaxAmount
+      // Select optimal UTXO
+      const utxo = await this.selectUTXO(avax, walletInfo.avaxUtxos)
 
-      this.log(`Existing balance: ${walletInfo.avaxAmount} AVAX`)
-      if (avaxAmount <= avax) {
-        throw new Error("There's not enough avax to perform the transaction")
+      // Exit if there is no UTXO big enough to fulfill the transaction.
+      if (!utxo.amount) {
+        this.log('Could not find a UTXO big enough for this transaction.')
+        throw new Error('Not enough avax in the selected utxo')
       }
 
+      // Generate a new address, for sending change to.
+      const getAddress = new GetAddress()
+      const changeAddress = await getAddress.getAvalancheAddress(filename, false)
+
       // Send the AVAX
-      const tx = await this.sendAvax(avax, sendToAddr, walletInfo, flags.memo)
+      const tx = await this.sendAvax(
+        utxo,
+        avax,
+        sendToAddr,
+        changeAddress,
+        walletInfo,
+        flags.memo
+      )
 
       const txid = await this.appUtils.broadcastAvaxTx(tx)
 
-      this.appUtils.displayAvaxTxid('done')
+      this.appUtils.displayAvaxTxid(txid)
       return txid
     } catch (err) {
       console.log('Error in send.js/run(): ', err)
@@ -76,96 +97,55 @@ class Send extends Command {
   }
 
   // Sends Avax to
-  async sendAvax (avaxAmount, sendToAddr, walletInfo, memo) {
+  async sendAvax (utxo, avaxAmount, sendToAddr, changeAddress, walletInfo, memo) {
     try {
       sendToAddr = this.xchain.parseAddress(sendToAddr)
-
-      // Get the node information
-      const xkeyChain = new this.KeyChain(this.ava.getHRP(), 'X')
-      xkeyChain.importKey(walletInfo.privateKey)
+      changeAddress = this.xchain.parseAddress(changeAddress)
+      // Generate a KeyChain from the change address.
+      const xkeyChain = this.appUtils.changeAvalancheAddress(walletInfo, utxo.hdIndex)
 
       const avaxIDBuffer = await this.xchain.getAVAXAssetID()
-      const { denomination } = await this.xchain.getAssetDescription(
-        avaxIDBuffer
-      )
+      const { denomination } = await this.xchain.getAssetDescription(avaxIDBuffer)
       const addresses = xkeyChain.getAddresses()
-      const addressStrings = xkeyChain.getAddressStrings()
 
       // encode memo
-      let memoBuffer
-      if (!memo) {
-        memoBuffer = Buffer.from(memo)
-      }
+      const memoBuffer = Buffer.from(memo)
 
-      const { utxos: utxoSet } = await this.xchain.getUTXOs(addressStrings)
-      const utxos = utxoSet.getAllUTXOs()
-
-      if (!utxos.length) {
-        throw new Error('There are no UTXOs in the address')
-      }
-      // get the token information
-
-      const balance = utxoSet.getBalance(addresses, avaxIDBuffer)
       const fee = this.xchain.getDefaultTxFee()
-
-      const num = avaxAmount * Math.pow(10, denomination)
-      const amount = new this.BN(num)
-      const remainder = balance.sub(fee).sub(amount)
+      const navax = parseFloat(avaxAmount) * Math.pow(10, denomination)
+      const navaxToSend = new this.BN(navax)
+      const utxoBalance = new this.BN(utxo.amount)
+      const remainder = utxoBalance.sub(fee).sub(navaxToSend)
 
       if (remainder.isNeg()) {
-        throw new Error('Not enough founds to pay for transaction')
+        throw new Error('Not enough avax in the selected utxo')
       }
 
-      // get the inputs for the transcation
-      const inputs = utxos.reduce((txInputs, utxo) => {
-        // TypeID 7 is a transaction utxo, everything else gets skipped
-        const utxoType = utxo.getOutput().getTypeID()
-        const isAvaxAsset =
-          utxo.getAssetID().toString('hex') === avaxIDBuffer.toString('hex')
-        if (utxoType !== 7 || !isAvaxAsset) {
-          return txInputs
-        }
+      const inputs = []
+      const transferInput = new this.avm.SECPTransferInput(utxoBalance)
+      transferInput.addSignatureIdx(0, addresses[0])
 
-        const amountOutput = utxo.getOutput()
-        const amt = amountOutput.getAmount().clone()
-        const txid = utxo.getTxID()
-        const outputidx = utxo.getOutputIdx()
+      const txInput = new this.avm.TransferableInput(
+        this.bintools.cb58Decode(utxo.txid),
+        Buffer.from(utxo.outputIdx, 'hex'),
+        avaxIDBuffer,
+        transferInput
+      )
 
-        const transferInput = new this.avm.SECPTransferInput(amt)
-        transferInput.addSignatureIdx(0, addresses[0])
-        const input = new this.avm.TransferableInput(
-          txid,
-          outputidx,
-          avaxIDBuffer,
-          transferInput
-        )
-        txInputs.push(input)
-        return txInputs
-      }, [])
+      inputs.push(txInput)
 
       // get the desired outputs for the transaction
       const outputs = []
-      const firstTransferOutput = new this.avm.SECPTransferOutput(amount, [
-        sendToAddr
-      ])
-      const firstTransferableOutput = new this.avm.TransferableOutput(
-        avaxIDBuffer,
-        firstTransferOutput
-      )
+      const firstTransferOutput = new this.avm.SECPTransferOutput(navaxToSend, [sendToAddr])
+      const firstOutput = new this.avm.TransferableOutput(avaxIDBuffer, firstTransferOutput)
       // Add the first AVAX output = the amount to send to the other address
-      outputs.push(firstTransferableOutput)
+      outputs.push(firstOutput)
 
-      // add the remainder as output to be sent back to the address
+      // add the remainder as output to be sent back to the change address
       if (!remainder.isZero()) {
-        const remainderTransferOutput = new avm.SECPTransferOutput(
-          remainder,
-          addresses
-        )
-        const remainderTransferableOutput = new avm.TransferableOutput(
-          avaxIDBuffer,
-          remainderTransferOutput
-        )
-        outputs.push(remainderTransferableOutput)
+        const remainderTransferOutput = new this.avm.SECPTransferOutput(remainder, [changeAddress])
+        const remainderOutput = new this.avm.TransferableOutput(avaxIDBuffer, remainderTransferOutput)
+        outputs.push(remainderOutput)
       }
 
       // Build the transcation
@@ -177,7 +157,6 @@ class Send extends Command {
         memoBuffer
       )
       const unsignedTx = new this.avm.UnsignedTx(baseTx)
-
       return unsignedTx.sign(xkeyChain)
     } catch (err) {
       console.log('Error in sendAvax()')
@@ -212,6 +191,54 @@ class Send extends Command {
     }
 
     return true
+  }
+
+  // Selects a UTXO from an array of UTXOs based on this optimization criteria:
+  // 1. The UTXO must be larger than or equal to the amount of AVAX to send.
+  // 2. The UTXO should be as close to the amount of AVAX as possible.
+  //    i.e. as small as possible
+  // Returns a single UTXO object.
+  async selectUTXO (avax, utxos) {
+    let candidateUTXO = {}
+
+    const avaxBuffer = await this.xchain.getAVAXAssetID()
+    const assetDetail = await this.xchain.getAssetDescription(avaxBuffer)
+    const txFee = await this.xchain.getTxFee()
+    // 1 nAVAX is equal to 0.000000001 AVAX
+    const navax = parseFloat(avax) * Math.pow(10, assetDetail.denomination)
+
+    const total = navax + txFee.toNumber()
+    // if it's a new wallet
+    if (!utxos) {
+      utxos = []
+    }
+
+    // Loop through each address.
+    for (var i = 0; i < utxos.length; i++) {
+      const thisAddr = utxos[i]
+
+      // Loop through each UTXO for each address.
+      for (let j = 0; j < thisAddr.utxos.length; j++) {
+        const thisUTXO = { ...thisAddr.utxos[j], hdIndex: thisAddr.hdIndex }
+
+        // The UTXO must be greater than or equal to the send amount.
+        if (thisUTXO.amount < total) {
+          continue
+        }
+        // Automatically assign if the candidateUTXO is an empty object.
+        if (!candidateUTXO.amount) {
+          candidateUTXO = thisUTXO
+          continue
+        }
+
+        // Replace the candidate if the current UTXO is closer to the send amount.
+        if (candidateUTXO.amount > thisUTXO.amount) {
+          candidateUTXO = thisUTXO
+        }
+      }
+    }
+
+    return candidateUTXO
   }
 }
 

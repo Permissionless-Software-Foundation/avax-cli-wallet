@@ -71,10 +71,38 @@ describe('#update-balances.js', () => {
     })
   })
 
-  describe('#updateBalances', () => {
-    // Only run this test as an integration test.
-    // DANGER! Due to the mocking used in unit tests, this test will never end.
-    it('should update balances', async () => {
+  describe('#getAddressBalances', () => {
+    it('should return all the balances in the given address', async () => {
+      sandbox.stub(uut.xchain, 'getAllBalances').resolves(mockData.assets)
+      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+
+      const callback = sandbox.stub(uut.xchain, 'getAssetDescription')
+      callback.onCall(0).resolves(mockData.assetDetails[1])
+      callback.resolves(mockData.assetDetails[2])
+
+      const initialWalletInfo = require('../../wallets/test123')
+      const walletInfo = await uut.getAddressBalances(
+        initialWalletInfo.addresses[0],
+        mockData.assetDetails[0],
+        0
+      )
+
+      assert.hasAllKeys(walletInfo, [
+        'address',
+        'hdIndex',
+        'avaxAmount',
+        'assets'
+      ])
+
+      assert.isArray(
+        walletInfo.assets,
+        'Expect array of addresses with balances.'
+      )
+      assert.equal(walletInfo.hdIndex, 0)
+      assert.equal(walletInfo.assets.length, 3)
+    })
+
+    it('should fetch the avax description if its not provided', async () => {
       sandbox.stub(uut.xchain, 'getAllBalances').resolves(mockData.assets)
       sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
 
@@ -83,84 +111,197 @@ describe('#update-balances.js', () => {
       callback.onCall(1).resolves(mockData.assetDetails[1])
       callback.resolves(mockData.assetDetails[2])
 
-      const flags = { name: 'test123' }
-
-      const walletInfo = await uut.updateBalances(flags)
+      const initialWalletInfo = require('../../wallets/test123')
+      const walletInfo = await uut.getAddressBalances(
+        initialWalletInfo.addresses[0],
+        null,
+        0
+      )
 
       assert.hasAllKeys(walletInfo, [
-        'network',
-        'type',
-        'seed',
-        'mnemonic',
-        'privateKey',
-        'addressString',
-        'description',
-        'assets',
-        'avaxAmount'
+        'address',
+        'hdIndex',
+        'avaxAmount',
+        'assets'
       ])
 
       assert.isArray(
         walletInfo.assets,
         'Expect array of addresses with balances.'
       )
-
+      assert.equal(walletInfo.hdIndex, 0)
       assert.equal(walletInfo.assets.length, 3)
     })
 
-    it('should update balances ignoring all tokens but avax', async () => {
-      sandbox.stub(uut.xchain, 'getAllBalances').resolves(mockData.assets)
-      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+    it('should throw an error', async () => {
+      try {
+        sandbox.stub(uut.xchain, 'getAllBalances').rejects()
 
-      sandbox.stub(uut.xchain, 'getAssetDescription').resolves(mockData.assetDetails[0])
+        const initialWalletInfo = require('../../wallets/test123')
+        await uut.getAddressBalances(
+          initialWalletInfo.addresses[0],
+          mockData.assetDetails[0],
+          0
+        )
+        assert.fail('Unexpected result')
+      } catch (error) {
+        assert(true)
+      }
+    })
+  })
 
-      const flags = { name: 'test123', ignoreTokens: true }
-
-      const walletInfo = await uut.updateBalances(flags)
-
-      assert.hasAllKeys(walletInfo, [
-        'network',
-        'type',
-        'seed',
-        'mnemonic',
-        'privateKey',
-        'addressString',
-        'description',
-        'assets',
-        'avaxAmount'
-      ])
-
-      assert.isArray(
-        walletInfo.assets,
-        'Expect array of addresses with balances.'
-      )
-      assert.equal(walletInfo.avaxAmount, 0.058)
-      assert.equal(walletInfo.assets.length, 0)
+  describe('#filterUtxos', () => {
+    it('should throw an error if utxo array is not provided', async () => {
+      try {
+        uut.filterUtxos()
+        assert.fail('Unexpected result')
+      } catch (error) {
+        assert.include(error.message, 'utxoObjs must be an array')
+      }
     })
 
-    it('should update balances even if the wallet is empty', async () => {
-      sandbox.stub(uut.xchain, 'getAllBalances').resolves([])
+    it('should throw an error if avaxHex is not a string', async () => {
+      try {
+        uut.filterUtxos([])
+        assert.fail('Unexpected result')
+      } catch (error) {
+        assert.include(error.message, 'avaxHex must be a string')
+      }
+    })
 
-      const flags = { name: 'test123' }
+    it('should return the filtered utxos', async () => {
+      try {
+        const walletInfo = require('../../wallets/test123')
 
-      const walletInfo = await uut.updateBalances(flags)
-      assert.hasAllKeys(walletInfo, [
-        'network',
-        'type',
-        'seed',
-        'mnemonic',
-        'privateKey',
-        'addressString',
-        'description',
-        'assets',
+        const utxosObjs = [
+          { address: walletInfo.addresses['0'], hdIndex: 0, utxos: [] },
+          { address: walletInfo.addresses['1'], hdIndex: 1, utxos: mockData.utxos }
+        ]
+
+        const res = uut.filterUtxos(utxosObjs, mockData.avaxID.toString('hex'))
+        assert.hasAllKeys(res, [
+          'avaxUtxos',
+          'otherUtxos'
+        ])
+
+        // return only one since the first address doesnt have any utxo
+        assert.equal(res.avaxUtxos.length, 1)
+        assert.equal(res.otherUtxos.length, 1)
+      } catch (error) {
+        assert.fail('Unexpected result')
+      }
+    })
+  })
+
+  describe('#getAddressData', () => {
+    it('should throw an error if index is not suplied', async () => {
+      try {
+        const initialWalletInfo = require('../../wallets/test123')
+        await uut.getAddressData(initialWalletInfo)
+        assert.fail('Unexpected result')
+      } catch (error) {
+        assert.include(error.message, 'index must be supplied')
+      }
+    })
+
+    it('should throw an error if limit is not suplied', async () => {
+      try {
+        const initialWalletInfo = require('../../wallets/test123')
+        await uut.getAddressData(initialWalletInfo, 0)
+        assert.fail('Unexpected result')
+      } catch (error) {
+        assert.include(error.message, 'limit must be supplied as a non-zero number')
+      }
+    })
+
+    it('should throw an error if limit is over 20', async () => {
+      try {
+        const initialWalletInfo = require('../../wallets/test123')
+        await uut.getAddressData(initialWalletInfo, 0, 25)
+        assert.fail('Unexpected result')
+      } catch (error) {
+        assert.include(error.message, 'limit must be 20 or less.')
+      }
+    })
+
+    it('should update balances', async () => {
+      const assetDescription = sandbox.stub(uut.xchain, 'getAssetDescription')
+      const allBalances = sandbox.stub(uut.xchain, 'getAllBalances')
+      const getUTXOs = sandbox.stub(uut.xchain, 'getUTXOs')
+
+      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+      assetDescription.onCall(0).resolves(mockData.assetDetails[0])
+
+      allBalances.onCall(0).resolves([]) // first address is empty
+      allBalances.onCall(1).resolves(mockData.assets) // second address does have utxos
+      allBalances.resolves([])
+
+      assetDescription.onCall(1).resolves(mockData.assetDetails[1])
+      assetDescription.resolves(mockData.assetDetails[2])
+
+      getUTXOs.onCall(0).resolves({ utxos: mockData.utxoSet })
+      getUTXOs.resolves({ utxos: mockData.emptyUtxoSet })
+
+      const initialWalletInfo = require('../../wallets/test123')
+
+      const addressData = await uut.getAddressData(initialWalletInfo, 0, 20)
+
+      assert.hasAllKeys(addressData, [
+        'balances',
+        'avaxUtxos',
+        'otherUtxos',
         'avaxAmount'
       ])
 
-      assert.isArray(
-        walletInfo.assets,
-        'Expect array of addresses with balances.'
-      )
-      assert.equal(walletInfo.avaxAmount, 0)
-      assert.equal(walletInfo.assets.length, 0)
+      assert.isArray(addressData.avaxUtxos, 'Expect array of addresses with balances.')
+      assert.isArray(addressData.otherUtxos, 'Expect array of addresses with balances.')
+    })
+  })
+
+  describe('#getAllAddressData', () => {
+    it('should fetch the balances of at least 20 addresses', async () => {
+      const assetDescription = sandbox.stub(uut.xchain, 'getAssetDescription')
+      const allBalances = sandbox.stub(uut.xchain, 'getAllBalances')
+      const getUTXOs = sandbox.stub(uut.xchain, 'getUTXOs')
+
+      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+      assetDescription.onCall(0).resolves(mockData.assetDetails[0])
+
+      allBalances.onCall(0).resolves([]) // first address is empty
+      allBalances.onCall(1).resolves(mockData.assets) // second address does have utxos
+      allBalances.resolves([])
+
+      assetDescription.onCall(1).resolves(mockData.assetDetails[1])
+      assetDescription.resolves(mockData.assetDetails[2])
+
+      getUTXOs.onCall(0).resolves({ utxos: mockData.utxoSet })
+      getUTXOs.resolves({ utxos: mockData.emptyUtxoSet })
+
+      const initialWalletInfo = require('../../wallets/test123')
+
+      const addressData = await uut.getAllAddressData(initialWalletInfo)
+
+      assert.hasAllKeys(addressData, [
+        'balances',
+        'avaxUtxos',
+        'otherUtxos',
+        'avaxAmount'
+      ])
+
+      assert.isArray(addressData.avaxUtxos, 'Expect array of addresses with balances.')
+      assert.isArray(addressData.otherUtxos, 'Expect array of addresses with balances.')
+    })
+
+    it('should throw an error', async () => {
+      try {
+        sandbox.stub(uut, 'getAddressData').rejects(new Error('intended error'))
+        const initialWalletInfo = require('../../wallets/test123')
+
+        await uut.getAllAddressData(initialWalletInfo)
+        assert.fail('Unexpected result')
+      } catch (error) {
+        assert.include(error.message, 'intended error')
+      }
     })
   })
 
@@ -169,13 +310,22 @@ describe('#update-balances.js', () => {
       const flags = { name: 'test123' }
       // Mock methods that will be tested elsewhere.
       sandbox.stub(uut, 'parse').returns({ flags })
-      sandbox.stub(uut.xchain, 'getAllBalances').resolves(mockData.assets)
-      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+      const assetDescription = sandbox.stub(uut.xchain, 'getAssetDescription')
+      const allBalances = sandbox.stub(uut.xchain, 'getAllBalances')
+      const getUTXOs = sandbox.stub(uut.xchain, 'getUTXOs')
 
-      const callback = sandbox.stub(uut.xchain, 'getAssetDescription')
-      callback.onCall(0).resolves(mockData.assetDetails[0])
-      callback.onCall(1).resolves(mockData.assetDetails[1])
-      callback.resolves(mockData.assetDetails[2])
+      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+      assetDescription.onCall(0).resolves(mockData.assetDetails[0])
+
+      allBalances.onCall(0).resolves([]) // first address is empty
+      allBalances.onCall(1).resolves(mockData.assets) // second address does have utxos
+      allBalances.resolves([])
+
+      assetDescription.onCall(1).resolves(mockData.assetDetails[1])
+      assetDescription.resolves(mockData.assetDetails[2])
+
+      getUTXOs.onCall(0).resolves({ utxos: mockData.utxoSet })
+      getUTXOs.resolves({ utxos: mockData.emptyUtxoSet })
 
       const walletInfo = await uut.run()
 
@@ -183,13 +333,14 @@ describe('#update-balances.js', () => {
       assert.hasAllKeys(walletInfo, [
         'network',
         'type',
-        'seed',
         'mnemonic',
-        'privateKey',
-        'addressString',
         'description',
-        'assets',
-        'avaxAmount'
+        'addresses',
+        'nextAddress',
+        'avaxAmount',
+        'balances',
+        'avaxUtxos',
+        'otherUtxos'
       ])
     })
 

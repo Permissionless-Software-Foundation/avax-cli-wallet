@@ -1,33 +1,93 @@
 {
   "network": "mainnet",
   "type": "mnemonic",
-  "seed": "d9ae998663b2d3dedd88fc6ff12cbd3eb205c31af07171b5556fa2724cc7441d5ac0f13a87401ffefe135c138d51d5f5cc62c12a562e764ca5aa25a93870ed8d",
   "mnemonic": "guide rude green nut diagram behave attitude dutch shock half monitor clump gym ability maid web wrestle cinnamon make cabin couple damp march depart",
-  "privateKey": "PrivateKey-nquc7QFDAbfqA1Vp71whVvH7NPtR2FUV1rZhvTEZd7ZA9K5XH",
-  "addressString": "X-avax1u8de0sha3x4sx6cwe3s922ytawtgyl2z9swvcz",
   "description": "",
-  "assets": [
+  "addresses": {
+    "0": "X-avax1m8ezfnq0x4k7cgz07qn223kp94v4xzs6hznunq",
+    "1": "X-avax1xjx5hvy3ckkaeqgj3cege6xrpdvc23vfru3jg0"
+  },
+  "nextAddress": 1,
+  "avaxAmount": 0.094,
+  "balances": [
     {
-      "asset": "2jgTFB6MM4vwLzUNWFYGPfyeQfpLaEqj4XWku6FoW7vaGrrEd5",
-      "balance": "4.90",
-      "name": "AREPA TOKEN",
-      "symbol": "ARP",
-      "denomination": 2
-    },
-    {
-      "asset": "AVAX",
-      "balance": "0.060000000",
-      "name": "Avalanche",
-      "symbol": "AVAX",
-      "denomination": 9
-    },
-    {
-      "asset": "2tEi6r6PZ9VXHogUmkCzvijmW81TRNjtKWnR4FA55zTPc87fxC",
-      "balance": "894.00",
-      "name": "Bridge Test Token",
-      "symbol": "BTT",
-      "denomination": 2
+      "address": "X-avax1xjx5hvy3ckkaeqgj3cege6xrpdvc23vfru3jg0",
+      "hdIndex": 1,
+      "avaxAmount": 94000000,
+      "assets": [
+        {
+          "assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+          "name": "Avalanche",
+          "symbol": "AVAX",
+          "denomination": 9,
+          "amount": 94000000
+        },
+        {
+          "assetID": "2jgTFB6MM4vwLzUNWFYGPfyeQfpLaEqj4XWku6FoW7vaGrrEd5",
+          "name": "AREPA TOKEN",
+          "symbol": "ARP",
+          "denomination": 2,
+          "amount": 490
+        },
+        {
+          "assetID": "2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv",
+          "name": "QUIK COIN",
+          "symbol": "QUIK",
+          "denomination": 2,
+          "amount": 200
+        }
+      ]
     }
   ],
-  "avaxAmount": 0.06
+  "avaxUtxos": [
+    {
+      "address": "X-avax1xjx5hvy3ckkaeqgj3cege6xrpdvc23vfru3jg0",
+      "hdIndex": 1,
+      "utxos": [
+        {
+          "txid": "GNktsj6LCc1R5eqGkwYofwJwYobZ3dqVqfcpvc9JFepoe5zFT",
+          "outputIdx": "00000000",
+          "amount": 38000000,
+          "assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+          "typeID": 7
+        },
+        {
+          "txid": "GNktsj6LCc1R5eqGkwYofwJwYobZ3dqVqfcpvc9JFepoe5zFT",
+          "outputIdx": "00000001",
+          "amount": 28000000,
+          "assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+          "typeID": 7
+        },
+        {
+          "txid": "GNktsj6LCc1R5eqGkwYofwJwYobZ3dqVqfcpvc9JFepoe5zFT",
+          "outputIdx": "00000002",
+          "amount": 36000000,
+          "assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+          "typeID": 7
+        }
+      ]
+    }
+  ],
+  "otherUtxos": [
+    {
+      "address": "X-avax1xjx5hvy3ckkaeqgj3cege6xrpdvc23vfru3jg0",
+      "hdIndex": 1,
+      "utxos": [
+        {
+          "txid": "eLbJ2fMdmk6jUCDuptiny9ddN2oL8MKW9hc5buAmWbkk1YBoF",
+          "outputIdx": "00000001",
+          "amount": 490,
+          "assetID": "2jgTFB6MM4vwLzUNWFYGPfyeQfpLaEqj4XWku6FoW7vaGrrEd5",
+          "typeID": 7
+        },
+        {
+          "txid": "2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv",
+          "outputIdx": "00000001",
+          "amount": 200,
+          "assetID": "2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv",
+          "typeID": 7
+        }
+      ]
+    }
+  ]
 }

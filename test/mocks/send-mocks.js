@@ -13,7 +13,7 @@ const binTools = BinTools.getInstance()
 const avax = new avalanche.Avalanche('AVAX_IP', 9650)
 const xchain = avax.XChain()
 
-const addresses = [xchain.parseAddress(wallet.addressString)]
+const addresses = [xchain.parseAddress(wallet.addresses['1'])]
 
 const avaxString = 'FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z'
 const avaxID = binTools.cb58Decode(avaxString)
