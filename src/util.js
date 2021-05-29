@@ -10,6 +10,9 @@
 
 const fs = require('fs')
 const { Avalanche } = require('avalanche')
+const { KeyChain } = require('avalanche/dist/apis/evm')
+const HDKey = require('hdkey')
+const bip39 = require('bip39')
 
 // Inspect utility used for debugging.
 const util = require('util')
@@ -27,7 +30,13 @@ class AppUtils {
   constructor (config) {
     // By default use public npm library and mainnet.
     this.bchjs = bchjs
-    this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
+
+    // this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
+    this.ava = new Avalanche('api.avax.network', 443, 'https')
+    this.localConfig = globalConfig
+    this.KeyChain = KeyChain
+    this.HDKey = HDKey
+    this.bip39 = bip39
     // If bchjs is specified, override it with that.
     if (config && config.bchjs) {
       this.bchjs = config.bchjs
@@ -241,6 +250,54 @@ class AppUtils {
     }
 
     return bulkAddresses
+  }
+
+  // Generates an array of HD addresses.
+  // Address are generated from index to limit.
+  // e.g. generateAddress(walletInfo, 20, 10)
+  // will generate a 20-element array of addresses from index 20 to 29
+  generateAvalancheAddress (walletInfo, index, limit) {
+    if (!walletInfo.mnemonic) throw new Error('mnemonic is undefined!')
+
+    // parse them into a seed
+    const seed = this.bip39.mnemonicToSeedSync(walletInfo.mnemonic)
+    // create the master node and derive it
+    const masterHdKey = this.HDKey.fromMasterSeed(seed)
+
+    // Get the node information
+    const xkeyChain = new KeyChain(this.ava.getHRP(), 'X')
+
+    // Populate the keychain
+    for (let i = index; i < index + limit; i++) {
+      const derivationPath = `${this.localConfig.AVA_ACCOUNT_PATH}/0/${i}`
+      // derive an external change address HDNode
+      const change = masterHdKey.derive(derivationPath)
+      xkeyChain.importKey(change.privateKey)
+    }
+    return xkeyChain.getAddressStrings()
+  }
+
+  // Generate a change address from a Mnemonic of a private key.
+  changeAvalancheAddress (walletInfo, index) {
+    try {
+      if (!index && index !== 0) {
+        throw new Error('index must be a non-negative integer.')
+      }
+
+      // parse them into a seed
+      const seed = this.bip39.mnemonicToSeedSync(walletInfo.mnemonic)
+      // create the master node and derive it
+      const masterHdKey = this.HDKey.fromMasterSeed(seed)
+      const xkeyChain = new KeyChain(this.ava.getHRP(), 'X')
+      const derivationPath = `${this.localConfig.AVA_ACCOUNT_PATH}/0/${index}`
+      const change = masterHdKey.derive(derivationPath)
+      xkeyChain.importKey(change.privateKey)
+
+      return xkeyChain
+    } catch (err) {
+      console.log('Error in util.js/changeAddrFromMnemonic()')
+      throw err
+    }
   }
 
   // Returns an integer representing the HD node index of an address. Scans

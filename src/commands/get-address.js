@@ -1,10 +1,8 @@
 /*
-  Generates a new HD address for recieving BCH.
+  Generates a new HD address for recieving assets in the avalanche blockchain.
 
   -The next available address is tracked by the 'nextAddress' property in the
   wallet .json file.
-
-  TODO:
 */
 
 'use strict'
@@ -14,12 +12,17 @@ const qrcode = require('qrcode-terminal')
 const AppUtils = require('../util')
 const appUtils = new AppUtils()
 
-const config = require('../../config')
+const globalConfig = require('../../config')
+
+const HDKey = require('hdkey')
+const bip39 = require('bip39')
+
+const { Avalanche } = require('avalanche')
 
 // Mainnet by default.
-const bchjs = new config.BCHLIB({
-  restURL: config.MAINNET_REST,
-  apiToken: config.JWT
+const bchjs = new globalConfig.BCHLIB({
+  restURL: globalConfig.MAINNET_REST,
+  apiToken: globalConfig.JWT
 })
 
 const { Command, flags } = require('@oclif/command')
@@ -29,9 +32,12 @@ const { Command, flags } = require('@oclif/command')
 class GetAddress extends Command {
   constructor (argv, config) {
     super(argv, config)
-
     this.bchjs = bchjs
+    this.ava = new Avalanche('api.avax.network', 443, 'https')
     this.appUtils = appUtils
+    this.localConfig = globalConfig
+    this.bip39 = bip39
+    this.HDKey = HDKey
   }
 
   async run () {
@@ -41,18 +47,10 @@ class GetAddress extends Command {
       // Validate input flags
       this.validateFlags(flags)
 
-      // Determine if this is a testnet wallet or a mainnet wallet.
-      if (flags.testnet) {
-        this.bchjs = new config.BCHLIB({ restURL: config.TESTNET_REST })
-      }
-
       // Generate an absolute filename from the name.
       const filename = `${__dirname}/../../wallets/${flags.name}.json`
 
-      const newAddress = await this.getAddress(filename, flags)
-
-      const slpAddr = this.bchjs.SLP.Address.toSLPAddress(newAddress)
-      const legacy = this.bchjs.Address.toLegacyAddress(newAddress)
+      const newAddress = await this.getAvalancheAddress(filename, !flags.noupdate)
 
       // Cut down on screen spam when running unit tests.
       if (process.env.TEST !== 'unit') {
@@ -60,9 +58,7 @@ class GetAddress extends Command {
         qrcode.generate(newAddress, { small: true })
 
         // Display the address to the user.
-        this.log(`cash address: ${newAddress}`)
-        this.log(`SLP address: ${slpAddr}`)
-        this.log(`legacy address: ${legacy}`)
+        this.log(`X-Chain address: ${newAddress}`)
       }
 
       return newAddress
@@ -82,8 +78,8 @@ class GetAddress extends Command {
 
     // Point to the correct rest server.
     if (walletInfo.network === 'testnet') {
-      this.bchjs = new config.BCHLIB({ restURL: config.TESTNET_REST })
-    } else this.bchjs = new config.BCHLIB({ restURL: config.MAINNET_REST })
+      this.bchjs = new globalConfig.BCHLIB({ restURL: globalConfig.TESTNET_REST })
+    } else this.bchjs = new globalConfig.BCHLIB({ restURL: globalConfig.MAINNET_REST })
 
     // root seed buffer
     const rootSeed = await this.bchjs.Mnemonic.toSeed(walletInfo.mnemonic)
@@ -136,6 +132,34 @@ class GetAddress extends Command {
     return newAddress
   }
 
+  async getAvalancheAddress (filename, shouldUpdate) {
+    const walletInfo = this.appUtils.openWallet(filename)
+
+    // Increment to point to a new address for next time.
+    walletInfo.nextAddress++
+
+    // Update the wallet.addresses array.
+    const addresses = await this.appUtils.generateAvalancheAddress(
+      walletInfo,
+      0,
+      walletInfo.nextAddress
+    )
+    walletInfo.addresses = {}
+    for (let i = 0; i < addresses.length; i++) {
+      walletInfo.addresses[i] = addresses[i]
+    }
+
+    // Update the wallet file.
+    if (shouldUpdate) {
+      await this.appUtils.saveWallet(filename, walletInfo)
+    }
+
+    // get the cash address
+    const [newAddress] = addresses.slice(-1)
+
+    return newAddress
+  }
+
   // Validate the proper flags are passed in.
   validateFlags (flags) {
     // Exit if wallet not specified.
@@ -148,15 +172,11 @@ class GetAddress extends Command {
   }
 }
 
-GetAddress.description = 'Generate a new address to recieve BCH.'
+GetAddress.description = 'Generate a new address to recieve funds in the XChain.'
 
 GetAddress.flags = {
-  testnet: flags.boolean({ char: 't', description: 'Create a testnet wallet' }),
   name: flags.string({ char: 'n', description: 'Name of wallet' }),
-  slp: flags.boolean({
-    char: 's',
-    description: 'Generate a simpledger: token address'
-  })
+  noupdate: flags.boolean({ char: 'u', description: 'Prevent updating the wallet' })
 }
 
 module.exports = GetAddress

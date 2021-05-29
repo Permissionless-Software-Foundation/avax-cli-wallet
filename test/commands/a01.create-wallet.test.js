@@ -91,17 +91,16 @@ describe('create-wallet', () => {
       assert.hasAllKeys(walletData, [
         'network',
         'type',
-        'seed',
         'mnemonic',
-        'privateKey',
-        'addressString',
         'description',
-        'assets',
+        'balances',
+        'addresses',
+        'nextAddress',
         'avaxAmount'
       ])
 
       // assets is an array of objects. Each object represents different asset
-      assert.isArray(walletData.assets)
+      assert.isArray(walletData.balances)
     })
   })
 
@@ -141,12 +140,11 @@ describe('create-wallet', () => {
       assert.hasAllKeys(walletData, [
         'network',
         'type',
-        'seed',
         'mnemonic',
-        'privateKey',
-        'addressString',
         'description',
-        'assets',
+        'balances',
+        'addresses',
+        'nextAddress',
         'avaxAmount'
       ])
     })
@@ -166,12 +164,11 @@ describe('create-wallet', () => {
       assert.hasAllKeys(walletData, [
         'network',
         'type',
-        'seed',
         'mnemonic',
-        'privateKey',
-        'addressString',
         'description',
-        'assets',
+        'balances',
+        'addresses',
+        'nextAddress',
         'avaxAmount'
       ])
     })

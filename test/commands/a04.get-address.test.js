@@ -21,6 +21,7 @@ const fs = require('fs')
 if (!process.env.TEST) process.env.TEST = 'unit'
 
 const deleteFile = () => {
+  delete require.cache[require.resolve('../../wallets/test123')]
   const prom = new Promise((resolve, reject) => {
     fs.unlink(filename, () => {
       resolve(true)
@@ -178,6 +179,83 @@ describe('get-address', () => {
     })
   })
 
+  describe('#getAvalancheAddress()', () => {
+    it('should throw error if name is not supplied.', async () => {
+      try {
+        await getAddress.getAvalancheAddress(undefined)
+        assert.fail('Unexpected result')
+      } catch (err) {
+        assert.include(err.message, 'Could not open', 'Expected error message.')
+      }
+    })
+
+    it('should throw error if wallet file not found', async () => {
+      try {
+        await getAddress.getAvalancheAddress('doesnotexist')
+        assert.fail('Unexpected result')
+      } catch (err) {
+        assert.include(err.message, 'Could not open', 'Expected error message.')
+      }
+    })
+
+    it('increments the nextAddress property of the wallet', async () => {
+      testUtil.restoreAvaxWallet()
+      const initialWalletInfo = require('../../wallets/test123')
+
+      // Record the initial nextAddress property. This is going to be 1 for a new wallet.
+      const firstAddressIndex = initialWalletInfo.nextAddress
+
+      // Generate a new address
+      await getAddress.getAvalancheAddress(filename, true)
+
+      // Delete the cached copy of the wallet. This allows testing of list-wallets.
+      delete require.cache[require.resolve('../../wallets/test123')]
+
+      // Read in the wallet file.
+      const walletInfo = require('../../wallets/test123')
+
+      assert.equal(
+        walletInfo.nextAddress,
+        firstAddressIndex + 1,
+        'nextAddress property should increment'
+      )
+    })
+
+    it('keeps the nextAddress property of the wallet.', async () => {
+      testUtil.restoreAvaxWallet()
+      const initialWalletInfo = require('../../wallets/test123')
+
+      // Record the initial nextAddress property. This is going to be 1 for a new wallet.
+      const firstAddressIndex = initialWalletInfo.nextAddress
+
+      // Generate a new address
+      await getAddress.getAvalancheAddress(filename, false)
+
+      // Delete the cached copy of the wallet. This allows testing of list-wallets.
+      delete require.cache[require.resolve('../../wallets/test123')]
+
+      // Read in the wallet file.
+      const walletInfo = require('../../wallets/test123')
+
+      assert.equal(
+        walletInfo.nextAddress,
+        firstAddressIndex,
+        'nextAddress property should be kept'
+      )
+    })
+
+    it('returns a avalanche cash address', async () => {
+      testUtil.restoreAvaxWallet()
+
+      // Generate a new address
+      const addr = await getAddress.getAvalancheAddress(filename)
+
+      const index = addr.indexOf('X-avax1')
+
+      assert.isAbove(index, -1, 'Avalanche address')
+    })
+  })
+
   describe('#validateFlags()', () => {
     // This validation function is called when the program is executed from the command line.
     it('validateFlags() should throw error if name is not supplied.', () => {
@@ -197,55 +275,21 @@ describe('get-address', () => {
 
   describe('#run()', () => {
     it('should run the run() function', async () => {
-      const flags = {
-        name: 'test123'
-      }
+      const flags = { name: 'test123' }
       // Mock methods that will be tested elsewhere.
-      testUtil.restoreWallet()
+      testUtil.restoreAvaxWallet()
 
       sandbox.stub(getAddress, 'parse').returns({ flags: flags })
 
       const addr = await getAddress.run()
-      const index = addr.indexOf('bitcoincash:')
-      assert.isAbove(index, -1, 'cash address')
-    })
-
-    it('should run the run() function with testnet', async () => {
-      const flags = {
-        name: 'test123'
-      }
-      // Mock methods that will be tested elsewhere.
-      testUtil.restoreWallet('testnet')
-
-      sandbox.stub(getAddress, 'parse').returns({ flags: flags })
-
-      const addr = await getAddress.run()
-      const index = addr.indexOf('bchtest:')
-
-      assert.isAbove(index, -1, 'cash address')
-    })
-
-    it('should run the run() function with testnet backend', async () => {
-      const flags = {
-        name: 'test123',
-        testnet: true
-      }
-
-      // Mock methods that will be tested elsewhere.
-      testUtil.restoreWallet('testnet')
-      sandbox.stub(getAddress, 'parse').returns({ flags: flags })
-
-      const addr = await getAddress.run()
-
-      const index = addr.indexOf('bchtest:')
-      assert.isAbove(index, -1, 'testnet address')
+      const index = addr.indexOf('X-avax1')
+      assert.isAbove(index, -1, 'Avalanche address')
     })
 
     it('should return error.message on empty flags', async () => {
       sandbox.stub(getAddress, 'parse').returns({ flags: {} })
 
       const result = await getAddress.run()
-      // console.log('result: ', result)
 
       assert.equal(result, 0)
     })
