@@ -28,7 +28,7 @@ describe('list-wallets', () => {
   it('should correctly identify a mainnet wallet', async () => {
     // Create a mainnet wallet.
 
-    testUtil.restoreWallet()
+    testUtil.restoreAvaxWallet()
 
     const listWallets = new ListWallets()
     const data = listWallets.parseWallets()
@@ -55,13 +55,13 @@ describe('list-wallets', () => {
   })
 
   it('should display wallets table', async () => {
-    testUtil.restoreWallet('testnet')
+    testUtil.restoreAvaxWallet()
 
     const listWallets = new ListWallets()
     Promise.resolve(listWallets.run()).then(function (table) {
       assert.include(table, 'Name')
       assert.include(table, 'Network')
-      assert.include(table, 'Balance (BCH)')
+      assert.include(table, 'Balance (AVAX)')
     })
   })
 
