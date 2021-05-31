@@ -46,7 +46,7 @@ class ListWallets extends Command {
 
       const walletInfo = require(`${thisFile}`)
 
-      retData.push([name, walletInfo.network, walletInfo.balance])
+      retData.push([name, walletInfo.network, walletInfo.avaxAmount])
     }
 
     return retData
@@ -54,9 +54,9 @@ class ListWallets extends Command {
 
   // Display table in a table on the command line using cli-table.
   displayTable (data) {
-    var table = new Table({
-      head: ['Name', 'Network', 'Balance (BCH)'],
-      colWidths: [25, 15, 15]
+    const table = new Table({
+      head: ['Name', 'Network', 'Balance (AVAX)'],
+      colWidths: [25, 15, 20]
     })
 
     for (let i = 0; i < data.length; i++) table.push(data[i])
