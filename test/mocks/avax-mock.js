@@ -21,11 +21,11 @@ const arpBuffer = bintools.cb58Decode('2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnEL
 const assets = [
   { asset: 'AVAX', balance: '58000000' },
   {
-    asset: '2tEi6r6PZ9VXHogUmkCzvijmW81TRNjtKWnR4FA55zTPc87fxC',
+    asset: quikString,
     balance: '89400'
   },
   {
-    asset: '2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv',
+    asset: arpString,
     balance: '490'
   }
 ]
@@ -116,5 +116,6 @@ module.exports = {
   utxos,
   utxoSet,
   emptyUtxoSet,
+  quikString,
   assetDetails
 }

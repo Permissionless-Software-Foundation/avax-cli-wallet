@@ -1,8 +1,3 @@
-/*
-  TODO:
-
-*/
-
 'use strict'
 
 const assert = require('chai').assert
@@ -11,13 +6,12 @@ const cloneDeep = require('lodash.clonedeep')
 
 // Library under test.
 const SendTokens = require('../../src/commands/send-tokens')
-// const config = require('../../config')
 
 // Mock data
-const testwallet = require('../mocks/token-wallet.json')
-const mockDataLib = require('../mocks/send-token-mocks')
-const { bitboxMock } = require('../mocks/bitbox')
-// const utilMocks = require('../mocks/util')
+const testUtil = require('../util/test-util')
+const testwallet = require('../mocks/avax-wallet.json')
+const sendMockData = require('../mocks/send-mocks')
+const avaxMockData = require('../mocks/avax-mock')
 
 // Inspect utility used for debugging.
 const util = require('util')
@@ -31,22 +25,22 @@ util.inspect.defaultOptions = {
 if (!process.env.TEST) process.env.TEST = 'unit'
 
 describe('#send-tokens', () => {
-  let bchjs
   let mockedWallet
-  let sendTokens
+  let uut // unit under test
   let sandbox
   let mockData
 
+  before(() => {
+    testUtil.restoreAvaxWallet()
+  })
+
   beforeEach(() => {
-    // By default, use the mocking library instead of live calls.
-    bchjs = bitboxMock
-    mockedWallet = cloneDeep(testwallet) // Clone the testwallet
-    mockData = cloneDeep(mockDataLib)
-
+    mockedWallet = Object.assign({}, testwallet) // Clone the testwallet
+    mockData = cloneDeep(sendMockData)
     sandbox = sinon.createSandbox()
+    uut = new SendTokens()
 
-    sendTokens = new SendTokens()
-    sendTokens.bchjs = bchjs
+    delete require.cache[require.resolve('../../wallets/test123')]
   })
 
   afterEach(() => {
@@ -56,7 +50,8 @@ describe('#send-tokens', () => {
   describe('#validateFlags', () => {
     it('should throw error if name is not supplied.', () => {
       try {
-        sendTokens.validateFlags({})
+        uut.validateFlags({})
+        assert.fail('Unexpected result')
       } catch (err) {
         assert.include(
           err.message,
@@ -72,7 +67,8 @@ describe('#send-tokens', () => {
           name: 'testwallet'
         }
 
-        sendTokens.validateFlags(flags)
+        uut.validateFlags(flags)
+        assert.fail('Unexpected result')
       } catch (err) {
         assert.include(
           err.message,
@@ -89,7 +85,8 @@ describe('#send-tokens', () => {
           qty: 0.1
         }
 
-        sendTokens.validateFlags(flags)
+        uut.validateFlags(flags)
+        assert.fail('Unexpected result')
       } catch (err) {
         assert.include(
           err.message,
@@ -107,17 +104,18 @@ describe('#send-tokens', () => {
           sendAddr: 'abc'
         }
 
-        sendTokens.validateFlags(flags)
+        uut.validateFlags(flags)
+        assert.fail('Unexpected result')
       } catch (err) {
         assert.include(
           err.message,
-          'You must specifcy the SLP token ID',
+          'You must specifcy the avalanche token ID',
           'Expected error message.'
         )
       }
     })
 
-    it('should throw error if token ID is not valid.', () => {
+    it('should throw error if receiving address is not valid.', () => {
       try {
         const flags = {
           name: 'testwallet',
@@ -126,11 +124,12 @@ describe('#send-tokens', () => {
           tokenId: 'abc'
         }
 
-        sendTokens.validateFlags(flags)
+        uut.validateFlags(flags)
+        assert.fail('Unexpected result')
       } catch (err) {
         assert.include(
           err.message,
-          'TokenIdHex must be provided as a 64 character hex string',
+          'You must specify a valid avalanche',
           'Expected error message.'
         )
       }
@@ -140,12 +139,11 @@ describe('#send-tokens', () => {
       const flags = {
         name: 'testwallet',
         qty: 1.5,
-        sendAddr: 'abc',
-        tokenId:
-          'c4b0d62156b3fa5c8f3436079b5394f7edc1bef5dc1cd2f9d0c4d46f82cca479'
+        sendAddr: 'X-avax1xasw9kra42luktrckgc8z3hsgzme7h4ck6r4s9',
+        tokenId: 'c4b0d62156b3fa5c8f3436079b5394f7edc1bef5dc1cd2f9d0c4d46f82cca479'
       }
 
-      const result = sendTokens.validateFlags(flags)
+      const result = uut.validateFlags(flags)
 
       assert.equal(result, true)
     })
@@ -154,9 +152,10 @@ describe('#send-tokens', () => {
   describe('#getTokenUtxos', () => {
     it('should throw an error if there are no matching token utxos in wallet.', () => {
       try {
-        const tokenId =
-          'c4b0d62156b3fa5c8f3436079b5394f7edc1bef5dc1cd2f9d0c4d46f82cca479'
-        sendTokens.getTokenUtxos(tokenId, mockedWallet)
+        const tokenId = avaxMockData.quikString
+        mockedWallet.otherUtxos = null
+        uut.getTokenUtxos(tokenId, mockedWallet)
+        assert.fail('Unexpected result')
       } catch (err) {
         assert.include(
           err.message,
@@ -167,143 +166,256 @@ describe('#send-tokens', () => {
     })
 
     it('should return UTXOs matching token ID.', () => {
-      const tokenId =
-        'a4fb5c2da1aa064e25018a43f9165040071d9e984ba190c222a7f59053af84b2'
+      const tokenId = avaxMockData.quikString
 
-      const tokenUtxos = sendTokens.getTokenUtxos(tokenId, mockedWallet)
-      // console.log(`tokenUtxos: ${JSON.stringify(tokenUtxos, null, 2)}`)
-
-      assert.equal(tokenUtxos.length, 1) // Should return 1 UTXO from mock wallet.
-    })
-
-    it('should return remove minting baton from token UTXOs', () => {
-      const tokenId =
-        'd1c16867b41d77e6196e2680173b3afc9dff1968118ad1b829b3c8b9b921328d'
-
-      // Force the test wallet to have a minting baton
-      mockedWallet.SLPUtxos = mockData.mockUtxosWithMintingBaton
-
-      const tokenUtxos = sendTokens.getTokenUtxos(tokenId, mockedWallet)
-      // console.log(`tokenUtxos: ${JSON.stringify(tokenUtxos, null, 2)}`)
-
+      const tokenUtxos = uut.getTokenUtxos(tokenId, mockedWallet)
       assert.equal(tokenUtxos.length, 1) // Should return 1 UTXO from mock wallet.
     })
   })
 
-  // These are unit tests only.
-  // if (process.env.TEST === 'unit') {
-  //   describe('#getBchUtxos', () => {
-  //     it('should throw error if there are no BCH Utxos to pay for SLP transaction.', async () => {
-  //       // sandbox.stub(sendTokens.appUtils, 'getUTXOs').resolves([])
-  //       mockedWallet.BCHUtxos = []
-  //
-  //       try {
-  //         await sendTokens.getBchUtxos(mockedWallet)
-  //
-  //         assert.equal(true, false, 'Unexpected result!')
-  //       } catch (err) {
-  //         assert.include(
-  //           err.message,
-  //           'No BCH UTXOs found in wallet. No way to pay miner fees for transaction',
-  //           'Expected error message.'
-  //         )
-  //       }
-  //     })
-  //
-  //     it('should return non-SLP Utxos', async () => {
-  //       sandbox.stub(sendTokens.appUtils, 'getUTXOs').resolves([
-  //         {
-  //           txid:
-  //             'fc2d806e1395e6fbc57f1dbedbd6e04794e2105d1c8915c49539b5041b12345c',
-  //           vout: 1,
-  //           amount: 0.1,
-  //           satoshis: 10000000,
-  //           height: 1296652,
-  //           confirmations: 1,
-  //           hdIndex: 11
-  //         },
-  //         {
-  //           txid:
-  //             'fc2d806e1395e6fbc57f1dbedbd6e04794e2105d1c8915c49539b5041b12345c',
-  //           vout: 1,
-  //           amount: 0.1,
-  //           satoshis: 10000000,
-  //           height: 1296652,
-  //           confirmations: 1,
-  //           hdIndex: 11
-  //         }
-  //       ])
-  //
-  //       const utxos = await sendTokens.getBchUtxos(mockedWallet)
-  //
-  //       assert.isArray(utxos)
-  //     })
-  //   })
-  // }
+  describe('#sendTokens', () => {
+    it('should throw an error if the tokenUtxos is empty', async () => {
+      const tokenUtxos = []
+      const qty = 2
+      const sendToAddr = 'X-avax1xasw9kra42luktrckgc8z3hsgzme7h4ck6r4s9'
+      const changeAddr = mockedWallet.addresses['0']
+      const avaxUtxo = mockedWallet.avaxUtxos[0].utxos[0]
 
-  // 10/6/2020 CT: Not supporting testnet SLP tokens for now. Need to set up
-  // slp-api validation for testnet first.
-  // describe('#sendTokens', () => {
-  //   it('should send SLP on testnet', async () => {
-  //     // Do not use the mocked version of bch-js for these tests.
-  //     sendTokens.bchjs = new config.BCHLIB({
-  //       restURL: config.MAINNET_REST,
-  //       apiToken: config.JWT
-  //     })
-  //
-  //     const qty = 1.5 // tokens to send in an integration test.
-  //     const utxo =
-  //     // {
-  //     //   txid:
-  //     //     '26564508facb32a5f6893cb7bdfd2dcc264b248a1aa7dd0a572117667418ae5b',
-  //     //   vout: 0,
-  //     //   scriptPubKey: '76a9148687a941392d82bf0af208779c3b147e2fbadafa88ac',
-  //     //   amount: 0.03,
-  //     //   satoshis: 3000000,
-  //     //   height: 1265272,
-  //     //   confirmations: 733,
-  //     //   legacyAddress: 'mjSPWfCwCgHZC27nS8GQ4AXz9ehhb2GFqz',
-  //     //   cashAddress: 'bchtest:qq4sx72yfuhqryzm9h23zez27n6n24hdavvfqn2ma3',
-  //     //   hdIndex: 0
-  //     // }
-  //
-  //       {
-  //         address: 'bchtest:qq4sx72yfuhqryzm9h23zez27n6n24hdavvfqn2ma3',
-  //         utxos: [
-  //           [
-  //             {
-  //               height: 655296,
-  //               tx_hash:
-  //                 '60e3e96f1cad2cdad7be32c15b3ce5affb1c828a4a4110360f4d3e274815e5ea',
-  //               tx_pos: 239,
-  //               value: 547,
-  //               satoshis: 547,
-  //               txid:
-  //                 '60e3e96f1cad2cdad7be32c15b3ce5affb1c828a4a4110360f4d3e274815e5ea',
-  //               vout: 239,
-  //               isValid: false,
-  //               address: 'bchtest:qq4sx72yfuhqryzm9h23zez27n6n24hdavvfqn2ma3',
-  //               hdIndex: 2
-  //             }
-  //           ]
-  //         ]
-  //       }
-  //     const sendToAddr = 'bchtest:qzsfqeqtdk6plsvglccadkqtf0trf2nyz58090e6tt'
-  //
-  //     mockedWallet.network = 'testnet'
-  //
-  //     const hex = await sendTokens.sendTokens(
-  //       utxo,
-  //       qty,
-  //       utxo.cashAddress,
-  //       sendToAddr,
-  //       mockedWallet,
-  //       mockedWallet.SLPUtxos
-  //     )
-  //
-  //     // console.log(`hex: ${hex}`)
-  //
-  //     assert.isString(hex)
-  //   })
-  // })
+      try {
+        mockedWallet.otherUtxos = null
+        await uut.sendTokens(
+          avaxUtxo,
+          tokenUtxos,
+          qty,
+          sendToAddr,
+          changeAddr,
+          mockedWallet,
+          ''
+        )
+
+        assert.fail('Unexpected result')
+      } catch (err) {
+        assert.include(
+          err.message,
+          'At least one utxo',
+          'Expected error message.'
+        )
+      }
+    })
+
+    it('should throw an error if the avaxUtxo doesnt have enough for fee', async () => {
+      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+
+      const tokenId = avaxMockData.quikString
+      const tokenUtxos = uut.getTokenUtxos(tokenId, mockedWallet)
+      const qty = 2
+      const sendToAddr = 'X-avax1xasw9kra42luktrckgc8z3hsgzme7h4ck6r4s9'
+      const changeAddr = mockedWallet.addresses['0']
+      const avaxUtxo = mockedWallet.avaxUtxos[0].utxos[0]
+      avaxUtxo.hdIndex = 1
+      avaxUtxo.amount = 0
+
+      try {
+        mockedWallet.otherUtxos = null
+        await uut.sendTokens(
+          avaxUtxo,
+          tokenUtxos,
+          qty,
+          sendToAddr,
+          changeAddr,
+          mockedWallet,
+          ''
+        )
+        assert.fail('Unexpected result')
+      } catch (err) {
+        assert.include(
+          err.message,
+          'Not enough avax',
+          'Expected error message.'
+        )
+      }
+    })
+
+    it('should throw an error if the token amount if bigger than balance', async () => {
+      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+      sandbox.stub(uut.xchain, 'getAssetDescription').resolves({ denomination: 2 })
+
+      const tokenId = avaxMockData.quikString
+      const tokenUtxos = uut.getTokenUtxos(tokenId, mockedWallet)
+      const qty = 5
+      const sendToAddr = 'X-avax1xasw9kra42luktrckgc8z3hsgzme7h4ck6r4s9'
+      const changeAddr = mockedWallet.addresses['0']
+      const avaxUtxo = mockedWallet.avaxUtxos[0].utxos[1]
+      avaxUtxo.hdIndex = 1
+
+      try {
+        mockedWallet.otherUtxos = null
+        await uut.sendTokens(
+          avaxUtxo,
+          tokenUtxos,
+          qty,
+          sendToAddr,
+          changeAddr,
+          mockedWallet,
+          ''
+        )
+        assert.fail('Unexpected result')
+      } catch (err) {
+        assert.include(
+          err.message,
+          'Not enough tokens',
+          'Expected error message.'
+        )
+      }
+    })
+
+    // Output 1: remaining avax
+    // Output 2: sent ant
+    // Output 3: remaining ant
+    it('should return a transaction object with two outputs', async () => {
+      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+      sandbox.stub(uut.xchain, 'getAssetDescription').resolves({ denomination: 2 })
+
+      const tokenId = avaxMockData.quikString
+      const tokenUtxos = uut.getTokenUtxos(tokenId, mockedWallet)
+      const qty = 4.9
+      const sendToAddr = 'X-avax1xasw9kra42luktrckgc8z3hsgzme7h4ck6r4s9'
+      const changeAddr = mockedWallet.addresses['0']
+      const avaxUtxo = mockedWallet.avaxUtxos[0].utxos[1]
+      avaxUtxo.hdIndex = 1
+
+      try {
+        mockedWallet.otherUtxos = null
+        const signed = await uut.sendTokens(
+          avaxUtxo,
+          tokenUtxos,
+          qty,
+          sendToAddr,
+          changeAddr,
+          mockedWallet,
+          ''
+        )
+
+        assert.equal(signed._typeName, 'Tx', 'Tx Expected')
+
+        const outs = signed.getUnsignedTx().getTransaction().getOuts()
+        assert.equal(outs.length, 2, 'Only two output expected')
+      } catch (err) {
+        console.log(err)
+        assert.fail('Unexpected result')
+      }
+    })
+
+    it('should return a transaction object with three outputs', async () => {
+      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+      sandbox.stub(uut.xchain, 'getAssetDescription').resolves({ denomination: 2 })
+
+      const tokenId = avaxMockData.quikString
+      const tokenUtxos = uut.getTokenUtxos(tokenId, mockedWallet)
+      const qty = 0.5
+      const sendToAddr = 'X-avax1xasw9kra42luktrckgc8z3hsgzme7h4ck6r4s9'
+      const changeAddr = mockedWallet.addresses['0']
+      const avaxUtxo = mockedWallet.avaxUtxos[0].utxos[1]
+      avaxUtxo.hdIndex = 1
+
+      try {
+        mockedWallet.otherUtxos = null
+        const signed = await uut.sendTokens(
+          avaxUtxo,
+          tokenUtxos,
+          qty,
+          sendToAddr,
+          changeAddr,
+          mockedWallet,
+          ''
+        )
+
+        assert.equal(signed._typeName, 'Tx', 'Tx Expected')
+
+        const outs = signed.getUnsignedTx().getTransaction().getOuts()
+        assert.equal(outs.length, 3, 'Only three output expected')
+      } catch (err) {
+        console.log(err)
+        assert.fail('Unexpected result')
+      }
+    })
+
+    it('should return a transaction object with one output', async () => {
+      sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+      sandbox.stub(uut.xchain, 'getAssetDescription').resolves({ denomination: 2 })
+
+      const tokenId = avaxMockData.quikString
+      const tokenUtxos = uut.getTokenUtxos(tokenId, mockedWallet)
+      const qty = 4.9
+      const sendToAddr = 'X-avax1xasw9kra42luktrckgc8z3hsgzme7h4ck6r4s9'
+      const changeAddr = mockedWallet.addresses['0']
+      const avaxUtxo = mockedWallet.avaxUtxos[0].utxos[2]
+      avaxUtxo.hdIndex = 1
+      avaxUtxo.amount = 1000000
+
+      try {
+        mockedWallet.otherUtxos = null
+        const signed = await uut.sendTokens(
+          avaxUtxo,
+          tokenUtxos,
+          qty,
+          sendToAddr,
+          changeAddr,
+          mockedWallet,
+          ''
+        )
+
+        assert.equal(signed._typeName, 'Tx', 'Tx Expected')
+
+        const outs = signed.getUnsignedTx().getTransaction().getOuts()
+        assert.equal(outs.length, 1, 'Only one output expected')
+      } catch (err) {
+        console.log(err)
+        assert.fail('Unexpected result')
+      }
+    })
+  })
+
+  describe('#run', () => {
+    it('should throw error if theres no utxo to pay the fee', async () => {
+      testUtil.restoreAvaxWallet()
+      const flags = {
+        name: 'test123',
+        qty: 1.5,
+        sendAddr: 'X-avax1xasw9kra42luktrckgc8z3hsgzme7h4ck6r4s9',
+        tokenId: avaxMockData.quikString
+      }
+
+      sandbox.stub(uut, 'parse').returns({ flags })
+      sandbox.stub(uut.updateBalances, 'updateBalances').resolves(mockedWallet)
+      sandbox.stub(uut.send, 'selectUTXO').resolves({})
+      const rest = await uut.run()
+      assert.equal(rest, 0, 'Unexpected result')
+    })
+
+    it('should return the txid for a new transaction', async () => {
+      testUtil.restoreAvaxWallet()
+      try {
+        const flags = {
+          name: 'test123',
+          qty: 1.5,
+          sendAddr: 'X-avax1xasw9kra42luktrckgc8z3hsgzme7h4ck6r4s9',
+          tokenId: avaxMockData.quikString,
+          memo: 'CLI in action'
+        }
+
+        sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+        sandbox.stub(uut.xchain, 'getAssetDescription').resolves({ denomination: 2 })
+        sandbox.stub(uut, 'parse').returns({ flags })
+        sandbox.stub(uut.updateBalances, 'updateBalances').resolves(mockedWallet)
+        sandbox.stub(uut.appUtils, 'broadcastAvaxTx').resolves('anewtxid')
+
+        const txid = await uut.run()
+        assert.equal(txid, 'anewtxid', 'Expected txid')
+      } catch (error) {
+        console.log(error)
+        assert.fail('Unexpected result')
+      }
+    })
+  })
 })

@@ -74,7 +74,7 @@ class Send extends Command {
 
       // Generate a new address, for sending change to.
       const getAddress = new GetAddress()
-      const changeAddress = await getAddress.getAvalancheAddress(filename, false)
+      const changeAddress = await getAddress.getAvalancheAddress(filename)
 
       // Send the AVAX
       const tx = await this.sendAvax(
