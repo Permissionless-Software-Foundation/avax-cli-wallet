@@ -7,7 +7,7 @@
     "0": "X-avax1m8ezfnq0x4k7cgz07qn223kp94v4xzs6hznunq",
     "1": "X-avax1xjx5hvy3ckkaeqgj3cege6xrpdvc23vfru3jg0"
   },
-  "nextAddress": 1,
+  "nextAddress": 2,
   "avaxAmount": 0.094,
   "balances": [
     {
@@ -23,7 +23,7 @@
           "amount": 94000000
         },
         {
-          "assetID": "2jgTFB6MM4vwLzUNWFYGPfyeQfpLaEqj4XWku6FoW7vaGrrEd5",
+          "assetID": "2tEi6r6PZ9VXHogUmkCzvijmW81TRNjtKWnR4FA55zTPc87fxC",
           "name": "AREPA TOKEN",
           "symbol": "ARP",
           "denomination": 2,
@@ -77,7 +77,7 @@
           "txid": "eLbJ2fMdmk6jUCDuptiny9ddN2oL8MKW9hc5buAmWbkk1YBoF",
           "outputIdx": "00000001",
           "amount": 490,
-          "assetID": "2jgTFB6MM4vwLzUNWFYGPfyeQfpLaEqj4XWku6FoW7vaGrrEd5",
+          "assetID": "2tEi6r6PZ9VXHogUmkCzvijmW81TRNjtKWnR4FA55zTPc87fxC",
           "typeID": 7
         },
         {

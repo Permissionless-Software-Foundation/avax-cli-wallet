@@ -224,7 +224,8 @@ class UpdateBalances extends Command {
 
       for (let i = 0; i < addresses.length; i++) {
         const addr = addresses[i]
-        const balance = await this.getAddressBalances(addr, avaxAssetDescription, i)
+        const hdIndex = i + index
+        const balance = await this.getAddressBalances(addr, avaxAssetDescription, hdIndex)
 
         if (!balance.assets.length) {
           continue
@@ -242,6 +243,7 @@ class UpdateBalances extends Command {
       // segregate UTXOs by address
       const uxtosByIndex = []
       for (let i = 0; i < addresses.length; i++) {
+        const hdIndex = i + index
         const addr = addresses[i]
         const addrBuffer = this.xchain.parseAddress(addr)
         const thisUtxo = utxos.filter(item => {
@@ -253,7 +255,7 @@ class UpdateBalances extends Command {
         //   const lastbit = addr.slice(-4)
         //   console.log(index + i, `${firstBit}\x1b[36m${lastbit}\x1b[0m`, `utxos: ${thisUtxo.length}`)
         // }
-        uxtosByIndex.push({ address: addr, hdIndex: i, utxos: thisUtxo })
+        uxtosByIndex.push({ address: addr, hdIndex, utxos: thisUtxo })
       }
 
       // Filter out the UTXOs.

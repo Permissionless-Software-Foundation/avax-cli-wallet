@@ -132,7 +132,7 @@ class GetAddress extends Command {
     return newAddress
   }
 
-  async getAvalancheAddress (filename, shouldUpdate) {
+  async getAvalancheAddress (filename, shouldUpdate = true) {
     const walletInfo = this.appUtils.openWallet(filename)
 
     // Increment to point to a new address for next time.
