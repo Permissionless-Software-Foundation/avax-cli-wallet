@@ -119,11 +119,11 @@ class SendTokens extends Command {
       }
 
       // Generate a KeyChain from the change address.
-      let xkeyChain = this.appUtils.changeAvalancheAddress(walletInfo, avaxUtxo.hdIndex)
+      let xkeyChain = this.appUtils.avalancheChangeAddress(walletInfo, avaxUtxo.hdIndex)
       // add all the keys for the addresses with tokens
       for (let i = 0; i < tokenUtxos.length; i++) {
         const thisUTXO = tokenUtxos[i]
-        const kc = this.appUtils.changeAvalancheAddress(walletInfo, thisUTXO.hdIndex)
+        const kc = this.appUtils.avalancheChangeAddress(walletInfo, thisUTXO.hdIndex)
         xkeyChain = xkeyChain.union(kc)
       }
 
