@@ -278,7 +278,7 @@ class AppUtils {
   }
 
   // Generate a change address from a Mnemonic of a private key.
-  changeAvalancheAddress (walletInfo, index) {
+  avalancheChangeAddress (walletInfo, index) {
     try {
       if (!index && index !== 0) {
         throw new Error('index must be a non-negative integer.')

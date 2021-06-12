@@ -206,7 +206,7 @@ class UpdateBalances extends Command {
       }
 
       if (limit > 20) throw new Error('limit must be 20 or less.')
-      console.log(' ')
+      // console.log(' ')
       console.log(`Getting address data at index ${index} up to index ${index + limit}`)
 
       // Get the list of addresses.
