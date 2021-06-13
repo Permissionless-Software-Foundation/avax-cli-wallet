@@ -35,7 +35,7 @@ describe('#send-tokens', () => {
   })
 
   beforeEach(() => {
-    mockedWallet = Object.assign({}, testwallet) // Clone the testwallet
+    mockedWallet = cloneDeep(testwallet) // Clone the testwallet
     mockData = cloneDeep(sendMockData)
     sandbox = sinon.createSandbox()
     uut = new SendTokens()
@@ -403,17 +403,22 @@ describe('#send-tokens', () => {
           tokenId: avaxMockData.quikString,
           memo: 'CLI in action'
         }
+        const avaxUtxo = mockedWallet.avaxUtxos[0].utxos[2]
+        avaxUtxo.hdIndex = 1
 
-        sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
-        sandbox.stub(uut.xchain, 'getAssetDescription').resolves({ denomination: 2 })
+        sandbox.stub(uut.send, 'selectUTXO').resolves(avaxUtxo)
+
         sandbox.stub(uut, 'parse').returns({ flags })
         sandbox.stub(uut.updateBalances, 'updateBalances').resolves(mockedWallet)
         sandbox.stub(uut.appUtils, 'broadcastAvaxTx').resolves('anewtxid')
 
+        sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+        sandbox.stub(uut.xchain, 'getAssetDescription').resolves({ denomination: 2 })
+
         const txid = await uut.run()
         assert.equal(txid, 'anewtxid', 'Expected txid')
       } catch (error) {
-        console.log(error)
+        console.log(error.message)
         assert.fail('Unexpected result')
       }
     })

@@ -102,7 +102,7 @@ class Send extends Command {
       sendToAddr = this.xchain.parseAddress(sendToAddr)
       changeAddress = this.xchain.parseAddress(changeAddress)
       // Generate a KeyChain from the change address.
-      const xkeyChain = this.appUtils.changeAvalancheAddress(walletInfo, utxo.hdIndex)
+      const xkeyChain = this.appUtils.avalancheChangeAddress(walletInfo, utxo.hdIndex)
 
       const avaxIDBuffer = await this.xchain.getAVAXAssetID()
       const { denomination } = await this.xchain.getAssetDescription(avaxIDBuffer)
