@@ -40,6 +40,7 @@ describe('#update-balances.js', () => {
   })
 
   beforeEach(() => {
+    // testUtil.restoreAvaxWallet()
     uut = new UpdateBalances()
     mockData = cloneDeep(avalancheMock)
     sandbox = sinon.createSandbox()
@@ -90,7 +91,7 @@ describe('#update-balances.js', () => {
       assert.hasAllKeys(walletInfo, [
         'address',
         'hdIndex',
-        'avaxAmount',
+        'navaxAmount',
         'assets'
       ])
 
@@ -121,7 +122,7 @@ describe('#update-balances.js', () => {
       assert.hasAllKeys(walletInfo, [
         'address',
         'hdIndex',
-        'avaxAmount',
+        'navaxAmount',
         'assets'
       ])
 
@@ -250,7 +251,7 @@ describe('#update-balances.js', () => {
         'balances',
         'avaxUtxos',
         'otherUtxos',
-        'avaxAmount'
+        'navaxAmount'
       ])
 
       assert.isArray(addressData.avaxUtxos, 'Expect array of addresses with balances.')
@@ -285,7 +286,7 @@ describe('#update-balances.js', () => {
         'balances',
         'avaxUtxos',
         'otherUtxos',
-        'avaxAmount'
+        'navaxAmount'
       ])
 
       assert.isArray(addressData.avaxUtxos, 'Expect array of addresses with balances.')
