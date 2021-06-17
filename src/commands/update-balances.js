@@ -31,8 +31,7 @@ class UpdateBalances extends Command {
 
     // Default libraries.
     // this.ava = new Avalanche(globalConfig.AVAX_IP, parseInt(globalConfig.AVAX_PORT))
-    this.ava = new Avalanche('78.47.131.51', 9650)
-    // this.ava = new Avalanche('api.avax.network', 443, 'https')
+    this.ava = new Avalanche('api.avax.network', 443, 'https')
     this.appUtils = appUtils
     this.bintools = BinTools.getInstance()
     this.xchain = this.ava.XChain()
