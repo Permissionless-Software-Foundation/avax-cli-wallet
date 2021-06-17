@@ -85,7 +85,7 @@ class UpdateBalances extends Command {
     const addresses = this.updateAddresses(walletInfo, addressData.balances)
 
     walletInfo.balances = addressData.balances
-    walletInfo.avaxAmount = addressData.avaxAmount / Math.pow(10, 9) // 9 can't be hardcoded forever
+    walletInfo.avaxAmount = addressData.navaxAmount / Math.pow(10, 9) // 9 can't be hardcoded forever
     walletInfo.avaxUtxos = addressData.avaxUtxos
     walletInfo.otherUtxos = addressData.otherUtxos
     walletInfo.addresses = addresses
@@ -155,7 +155,7 @@ class UpdateBalances extends Command {
       let balances = [] // Accumulates addresses balance.
       let otherUtxos = [] // Accumulates SLP token UTXOs.
       let avaxUtxos = [] // Accumulates BCH (non-SLP) UTXOs.
-      let avaxAmount = 0
+      let navaxAmount = 0
       let currentIndex = 0 // tracks the current HD index.
       let batchHasBalance = true // Flag to signal when last address found.
 
@@ -177,14 +177,14 @@ class UpdateBalances extends Command {
           balances = balances.concat(thisDataBatch.balances)
           otherUtxos = otherUtxos.concat(thisDataBatch.otherUtxos)
           avaxUtxos = avaxUtxos.concat(thisDataBatch.avaxUtxos)
-          avaxAmount += thisDataBatch.avaxAmount
+          navaxAmount += thisDataBatch.navaxAmount
         }
 
         // Protect against run-away while loop.
         if (currentIndex > 10000) break
       }
 
-      return { balances, otherUtxos, avaxUtxos, avaxAmount }
+      return { balances, otherUtxos, avaxUtxos, navaxAmount }
     } catch (err) {
       console.log('Error in update-balances.js/getAllAddressData()')
       throw err
@@ -219,7 +219,7 @@ class UpdateBalances extends Command {
       const balances = []
       const avaxBuffer = await this.xchain.getAVAXAssetID()
       const avaxAssetDescription = await this.xchain.getAssetDescription(avaxBuffer)
-      let avaxAmount = 0
+      let navaxAmount = 0
 
       for (let i = 0; i < addresses.length; i++) {
         const addr = addresses[i]
@@ -232,7 +232,7 @@ class UpdateBalances extends Command {
 
         balances.push(balance)
 
-        avaxAmount += balance.avaxAmount
+        navaxAmount += balance.navaxAmount
       }
 
       // Get UTXO data.
@@ -262,7 +262,7 @@ class UpdateBalances extends Command {
         uxtosByIndex, avaxBuffer.toString('hex')
       )
 
-      return { balances, avaxUtxos, otherUtxos, avaxAmount }
+      return { balances, avaxUtxos, otherUtxos, navaxAmount }
     } catch (err) {
       // console.log('Error: ', err)
       console.log('Error in update-balances.js/getAddressData()')
@@ -274,9 +274,9 @@ class UpdateBalances extends Command {
     try {
       const assetsBalance = await this.xchain.getAllBalances(address)
 
-      let avaxAmount = 0
+      let navaxAmount = 0
       if (assetsBalance.length === 0) {
-        return { address, hdIndex, avaxAmount, assets: [] }
+        return { address, hdIndex, navaxAmount, assets: [] }
       }
 
       if (!avaxAssetDescription) {
@@ -309,12 +309,12 @@ class UpdateBalances extends Command {
 
         if (asset === 'AVAX') {
           assetItem.assetID = this.bintools.cb58Encode(assetDetail.assetID)
-          avaxAmount = assetItem.amount
+          navaxAmount = assetItem.amount
         }
         assets.push(assetItem)
       }
 
-      return { address, hdIndex, avaxAmount, assets }
+      return { address, hdIndex, navaxAmount, assets }
     } catch (err) {
       console.log('Error in update-balances.js/getAddressBalances():', hdIndex)
       throw err

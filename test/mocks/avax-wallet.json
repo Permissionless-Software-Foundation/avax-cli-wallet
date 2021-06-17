@@ -13,7 +13,7 @@
     {
       "address": "X-avax1xjx5hvy3ckkaeqgj3cege6xrpdvc23vfru3jg0",
       "hdIndex": 1,
-      "avaxAmount": 94000000,
+      "navaxAmount": 94000000,
       "assets": [
         {
           "assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
@@ -83,7 +83,14 @@
         {
           "txid": "2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv",
           "outputIdx": "00000001",
-          "amount": 200,
+          "amount": 100,
+          "assetID": "2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv",
+          "typeID": 7
+        },
+        {
+          "txid": "2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv",
+          "outputIdx": "00000002",
+          "amount": 100,
           "assetID": "2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv",
           "typeID": 7
         }

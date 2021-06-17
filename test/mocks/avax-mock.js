@@ -53,7 +53,7 @@ const assetDetails = [
 
 const balance = {
   address: testAddr,
-  avaxAmount: 0.58,
+  navaxAmount: 0.58,
   hdIndex: 1,
   assets: [
     {
