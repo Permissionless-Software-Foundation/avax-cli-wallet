@@ -1,18 +1,17 @@
 /*
-  oclif command to send SLP tokens to an address.
+  oclif command to send ANT to an address.
 
   This command is optimized for privacy the same way the 'send' command is. See
   that command for details.
 
   Spends all token UTXOs for the same token and will send token change to the
-  same address the BCH change.
+  same address the avax change.
 
-  Basic workflow of sending an SLP token:
+  Basic workflow of sending an ANT:
   - Inputs:
-    - token Id, amount, input token UTXOs, input BCH payment UTXO, token output addr, token change addr, bch change addr
+    - token Id, amount, input token UTXOs, input avax payment UTXO, token output addr, token change addr, avalanche change addr
     - Note: All UTXOs for the same token should be spent. This will consolidate token UTXOs.
   - Validate inputs
-  - Convert token quantities into their base denomination (satoshis) with BigNumber lib.
   - Generate the OP_RETURN transaction
 */
 
@@ -76,7 +75,7 @@ class SendTokens extends Command {
 
       // Instatiate the Send class so this function can reuse its selectUTXO() code.
       const avaxUtxo = await this.send.selectUTXO(0.001, walletInfo.avaxUtxos)
-      console.log(`avaxUtxo ${JSON.stringify(avaxUtxo, null, 2)}`)
+
       // Exit if there is no UTXO big enough to fulfill the transaction.
       if (!avaxUtxo.amount) {
         this.log('Could not find a UTXO big enough for this transaction. More avax needed.')
@@ -108,7 +107,7 @@ class SendTokens extends Command {
     }
   }
 
-  // Generates the SLP transaction in hex format, ready to broadcast to network.
+  // Generates the ANT transaction in hex format, ready to broadcast to network.
   async sendTokens (avaxUtxo, tokenUtxos, qty, sendToAddr, changeAddress, walletInfo, memo) {
     try {
       sendToAddr = this.xchain.parseAddress(sendToAddr)
