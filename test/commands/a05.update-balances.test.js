@@ -306,11 +306,23 @@ describe('#update-balances.js', () => {
     })
   })
 
+  describe('#displayTokenBalances()', () => {
+    it('should throw an error for testing porpuses', () => {
+      try {
+        uut.displayTokenBalances(null)
+        assert.fail('unexpected result')
+      } catch (error) {
+        assert.include(error.message, 'Cannot read property \'map\' of null')
+      }
+    })
+  })
+
   describe('#run()', () => {
     it('should run the run() function', async () => {
       const flags = { name: 'test123' }
       // Mock methods that will be tested elsewhere.
       sandbox.stub(uut, 'parse').returns({ flags })
+      sandbox.stub(uut, 'log').returns(true)
       const assetDescription = sandbox.stub(uut.xchain, 'getAssetDescription')
       const allBalances = sandbox.stub(uut.xchain, 'getAllBalances')
       const getUTXOs = sandbox.stub(uut.xchain, 'getUTXOs')

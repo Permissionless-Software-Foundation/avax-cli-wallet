@@ -77,10 +77,8 @@ class UpdateBalances extends Command {
     const addressData = await this.getAllAddressData(walletInfo)
 
     // Cut down on screen spam when running unit tests.
-    if (process.env.TEST !== 'unit') {
-      // Summarize token balances
-      this.displayTokenBalances(addressData.balances)
-    }
+    // Summarize token balances
+    this.displayTokenBalances(addressData.balances)
 
     const addresses = this.updateAddresses(walletInfo, addressData.balances)
 
@@ -107,9 +105,9 @@ class UpdateBalances extends Command {
       let unique = collection.unique()
       unique = unique.toArray()
 
-      console.log(' ')
-      console.log('Avalanche Token Summary:')
-      console.log('Balance Name TokenID')
+      this.log(' ')
+      this.log('Avalanche Token Summary:')
+      this.log('Balance Name TokenID')
 
       // Loop through each unique tokenID.
       for (let i = 0; i < unique.length; i++) {
@@ -138,9 +136,9 @@ class UpdateBalances extends Command {
 
         // Write out summary info to the console.
         total = total / Math.pow(10, denomination)
-        console.log(`${total.toString().padStart(7)} ${symbol.padStart(4)} ${thisAssetId}`)
+        this.log(`${total.toString().padStart(7)} ${symbol.padStart(4)} ${thisAssetId}`)
       }
-      console.log(' ')
+      this.log(' ')
     } catch (err) {
       console.log('Error in update-balances.js/displayTokenBalances()')
       throw err

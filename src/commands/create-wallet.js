@@ -98,9 +98,7 @@ class CreateWallet extends Command {
 
       return walletData
     } catch (err) {
-      if (err.code !== 'EEXIT') {
-        console.log('Error in createAvaxWallet().')
-      }
+      console.log('Error in createAvaxWallet().', err)
       throw err
     }
   }
