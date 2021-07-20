@@ -63,10 +63,8 @@ class ListWallets extends Command {
 
     const tableStr = table.toString()
 
-    // Cut down on screen spam when running unit tests.
-    if (process.env.TEST !== 'unit') {
-      console.log(tableStr)
-    }
+    // Show the table on the console
+    this.log(tableStr)
 
     return tableStr
   }

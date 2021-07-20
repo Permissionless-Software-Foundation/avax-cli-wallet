@@ -15,17 +15,19 @@ const qrcode = require('qrcode-terminal')
 const AppUtils = require('../util')
 const appUtils = new AppUtils()
 
-const config = require('../../config')
+const globalConfig = require('../../config')
+
+const HDKey = require('hdkey')
+const bip39 = require('bip39')
+
+const { Avalanche, BinTools } = require('avalanche')
+const { KeyChain } = require('avalanche/dist/apis/evm')
 
 // Mainnet by default.
-const bchjs = new config.BCHLIB({
-  restURL: config.MAINNET_REST,
-  apiToken: config.JWT
+const bchjs = new globalConfig.BCHLIB({
+  restURL: globalConfig.MAINNET_REST,
+  apiToken: globalConfig.JWT
 })
-
-// Used for debugging and iterrogating JS objects.
-const util = require('util')
-util.inspect.defaultOptions = { depth: 2 }
 
 const { Command, flags } = require('@oclif/command')
 
@@ -34,8 +36,14 @@ const { Command, flags } = require('@oclif/command')
 class GetKey extends Command {
   constructor (argv, config) {
     super(argv, config)
-
     this.bchjs = bchjs
+    this.ava = new Avalanche('api.avax.network', 443, 'https')
+    this.appUtils = appUtils
+    this.localConfig = globalConfig
+    this.bintools = BinTools.getInstance()
+    this.bip39 = bip39
+    this.HDKey = HDKey
+    this.qrcode = qrcode
   }
 
   async run () {
@@ -45,38 +53,23 @@ class GetKey extends Command {
       // Validate input flags
       this.validateFlags(flags)
 
-      // Determine if this is a testnet wallet or a mainnet wallet.
-      if (flags.testnet) {
-        this.bchjs = new config.BCHLIB({ restURL: config.TESTNET_REST })
-      }
-
       // Generate an absolute filename from the name.
       const filename = `${__dirname}/../../wallets/${flags.name}.json`
 
-      const newPair = await this.getPair(filename)
+      const newPair = await this.getKeyPair(filename, flags.index)
+
       const newAddress = newPair.pub
 
-      // Cut down on screen spam when running unit tests.
-      if (process.env.TEST !== 'unit') {
-        // Display the Private Key
-        qrcode.generate(newPair.priv, { small: true })
-        this.log(`Private Key: ${newPair.priv}`)
-        this.log(`Public Key: ${newPair.pubKey}`)
+      // Display the Private Key
+      this.qrcode.generate(newPair.priv, { small: true })
+      this.log(`Private Key: ${newPair.priv}`)
+      this.log(`Public Key hex: ${newPair.pubHex}`)
 
-        // Display the address as a QR code.
-        qrcode.generate(newAddress, { small: true })
-      }
-
-      // Display the address to the user.
+      // Display the address as a QR code.
+      this.qrcode.generate(newAddress, { small: true })
       this.log(`${newAddress}`)
-      // this.log(`legacy address: ${legacy}`)
-
-      const slpAddress = this.bchjs.SLP.Address.toSLPAddress(newAddress)
-      console.log(`${slpAddress}`)
-      return {
-        cashAddress: newAddress,
-        slpAddress: slpAddress
-      }
+      // Display the address to the user.
+      return newPair
     } catch (err) {
       if (err.message) console.log(err.message)
       else console.log('Error in GetKey.run: ', err)
@@ -84,58 +77,30 @@ class GetKey extends Command {
     }
   }
 
-  // Get a private/public key pair. Private key in WIF format.
-  async getPair (filename) {
-    try {
-      // const filename = `${__dirname}/../../wallets/${name}.json`
-      const walletInfo = appUtils.openWallet(filename)
-      // console.log(`walletInfo: ${JSON.stringify(walletInfo, null, 2)}`)
+  // Get a private/public key pair.
+  async getKeyPair (filename, index) {
+    const walletInfo = this.appUtils.openWallet(filename)
 
-      // root seed buffer
-      const rootSeed = await this.bchjs.Mnemonic.toSeed(walletInfo.mnemonic)
-
-      // master HDNode
-      let masterHDNode
-      if (walletInfo.network === 'testnet') {
-        masterHDNode = this.bchjs.HDNode.fromSeed(rootSeed, 'testnet')
-      } else masterHDNode = this.bchjs.HDNode.fromSeed(rootSeed)
-
-      // HDNode of BIP44 account
-      const account = this.bchjs.HDNode.derivePath(
-        masterHDNode,
-        `m/44'/${walletInfo.derivation}'/0'`
-      )
-
-      // derive an external change address HDNode
-      const change = this.bchjs.HDNode.derivePath(
-        account,
-        `0/${walletInfo.nextAddress}`
-      )
-
-      // Increment to point to a new address for next time.
-      walletInfo.nextAddress++
-
-      // Update the wallet file.
-      await appUtils.saveWallet(filename, walletInfo)
-
-      // get the cash address
-      const newAddress = this.bchjs.HDNode.toCashAddress(change)
-
-      // get the private key
-      const newKey = this.bchjs.HDNode.toWIF(change)
-
-      const ec = this.bchjs.ECPair.fromWIF(newKey)
-      const pubKey = this.bchjs.ECPair.toPublicKey(ec)
-
-      return {
-        priv: newKey,
-        pub: newAddress,
-        pubKey: pubKey.toString('hex')
-      }
-    } catch (err) {
-      console.log('Error in getPair().')
-      throw err
+    // check latest generated address if index is not provided
+    if (typeof index !== 'number' || index < 0) {
+      index = walletInfo.nextAddress
     }
+
+    // parse the mnemonic into a seed
+    const seed = this.bip39.mnemonicToSeedSync(walletInfo.mnemonic)
+    // create the master node and derive it
+    const master = this.HDKey.fromMasterSeed(seed)
+    const derivationPath = `${this.localConfig.AVA_ACCOUNT_PATH}/0/${index}`
+    const change = master.derive(derivationPath)
+
+    const xkeyChain = new KeyChain(this.ava.getHRP(), 'X')
+    xkeyChain.importKey(change.privateKey)
+
+    const priv = 'PrivateKey-' + this.bintools.cb58Encode(change.privateKey)
+    const [pub] = xkeyChain.getAddressStrings()
+    const pubHex = change.publicKey.toString('hex')
+
+    return { priv, pub, pubHex }
   }
 
   // Validate the proper flags are passed in.
@@ -153,7 +118,8 @@ class GetKey extends Command {
 GetKey.description = 'Generate a new private/public key pair.'
 
 GetKey.flags = {
-  name: flags.string({ char: 'n', description: 'Name of wallet' })
+  name: flags.string({ char: 'n', description: 'Name of wallet' }),
+  index: flags.integer({ char: 'i', description: 'HD Address index (the default is the latest)' })
 }
 
 module.exports = GetKey

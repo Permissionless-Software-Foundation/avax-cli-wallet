@@ -18,6 +18,19 @@ const quikBuffer = bintools.cb58Decode('2tEi6r6PZ9VXHogUmkCzvijmW81TRNjtKWnR4FA5
 const arpString = '2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv'
 const arpBuffer = bintools.cb58Decode('2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv')
 
+const keys = [
+  {
+    priv: 'PrivateKey-nquc7QFDAbfqA1Vp71whVvH7NPtR2FUV1rZhvTEZd7ZA9K5XH',
+    pub: 'X-avax1u8de0sha3x4sx6cwe3s922ytawtgyl2z9swvcz',
+    pubHex: '02ee76dfc4382c949ccff2b0dc441775a67f864cde1df606175fb01acdc536682f'
+  },
+  {
+    priv: 'PrivateKey-qkKf69aGcMERhT2KCPBfMW3YDCJHaFqyYNjuTovxUPdmKWFeS',
+    pub: 'X-avax14car4ja7pj6gctcwzaa7saslfxd9r7wureq59z',
+    pubHex: '0335f5ca4e17c0716a7e2c123f7cd2f378664b54358aec4a0697eb9805b3a8d049'
+  }
+]
+
 const assets = [
   { asset: 'AVAX', balance: '58000000' },
   {
@@ -117,5 +130,6 @@ module.exports = {
   utxoSet,
   emptyUtxoSet,
   quikString,
+  keys,
   assetDetails
 }

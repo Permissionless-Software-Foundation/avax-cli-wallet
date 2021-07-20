@@ -6,13 +6,12 @@
 
 const assert = require('chai').assert
 const sinon = require('sinon')
+const cloneDeep = require('lodash.clonedeep')
 
 const GetKey = require('../../src/commands/get-key')
-const config = require('../../config')
 
-const { bitboxMock } = require('../mocks/bitbox')
-const fs = require('fs')
 const testUtil = require('../util/test-util')
+const avalancheMock = require('../mocks/avax-mock')
 
 const filename = `${__dirname}/../../wallets/test123.json`
 
@@ -26,149 +25,113 @@ util.inspect.defaultOptions = {
 
 // Set default environment variables for unit tests.
 if (!process.env.TEST) process.env.TEST = 'unit'
-const deleteFile = () => {
-  const prom = new Promise((resolve, reject) => {
-    fs.unlink(filename, () => {
-      resolve(true)
-    }) // Delete wallets file
-  })
-  return prom
-}
+
 describe('get-key', () => {
-  let BITBOX
   let getKey
   let sandbox
+  let mockData
+
+  before(() => {
+    testUtil.restoreAvaxWallet()
+  })
 
   beforeEach(async () => {
     sandbox = sinon.createSandbox()
-
     getKey = new GetKey()
-
-    // By default, use the mocking library instead of live calls.
-    delete require.cache[require.resolve('../../wallets/test123')]
-    BITBOX = bitboxMock
-    getKey.BITBOX = BITBOX
-    await deleteFile()
+    mockData = cloneDeep(avalancheMock)
   })
 
   afterEach(() => {
     sandbox.restore()
   })
 
-  it('run(): should run the function', async () => {
-    const flags = {
-      name: 'test123',
-      testnet: true
-    }
-    // Mock methods that will be tested elsewhere.
-    sandbox.stub(getKey, 'parse').returns({ flags: flags })
+  describe('#run()', () => {
+    it('should run the function', async () => {
+      const flags = { name: 'test123' }
+      // Mock methods that will be tested elsewhere.
+      sandbox.stub(getKey, 'parse').returns({ flags: flags })
+      sandbox.stub(getKey.qrcode, 'generate').returns(true)
+      sandbox.stub(getKey, 'log').returns(true)
 
-    testUtil.restoreWallet('testnet')
-    const result = await getKey.run()
-    assert.include(result.cashAddress, 'bchtest:')
-    assert.include(result.slpAddress, 'slptest:')
+      const result = await getKey.run()
+      assert.include(result.priv, 'PrivateKey-')
+      assert.include(result.pub, 'X-')
+    })
+
+    it('run(): should return 0 and display error.message on empty flags', async () => {
+      sandbox.stub(getKey, 'parse').returns({ flags: {} })
+
+      const result = await getKey.run()
+      assert.equal(result, null)
+    })
+
+    it('run(): should handle an error without a message', async () => {
+      sandbox.stub(getKey, 'parse').throws({})
+
+      const result = await getKey.run()
+      assert.equal(result, null)
+    })
   })
 
-  it('run(): should run the function in mainnet', async () => {
-    const flags = {
-      name: 'test123'
-    }
-    // Mock methods that will be tested elsewhere.
-    sandbox.stub(getKey, 'parse').returns({ flags: flags })
+  describe('#getKeyPair()', () => {
+    // getKey can be called directly by other programs, so this is tested separately.
+    it('should throw error if name is not supplied.', async () => {
+      try {
+        await getKey.getKeyPair(undefined)
+        assert.fail('unexpected result')
+      } catch (err) {
+        assert.include(err.message, 'Could not open', 'Expected error message.')
+      }
+    })
 
-    testUtil.restoreWallet()
-    const result = await getKey.run()
-    assert.include(result.cashAddress, 'bitcoincash:')
-    assert.include(result.slpAddress, 'simpleledger:')
+    it('should return a key pair for the address at the first index', async () => {
+      try {
+        const res = await getKey.getKeyPair(filename, 0)
+
+        assert.hasAllKeys(res, ['priv', 'pub', 'pubHex'])
+        assert.equal(res.priv, mockData.keys[0].priv)
+        assert.equal(res.pub, mockData.keys[0].pub)
+        assert.equal(res.pubHex, mockData.keys[0].pubHex)
+      } catch (err) {
+        console.log(err)
+        assert.fail('unexpected result')
+      }
+    })
+
+    it('should return a key pair for the address at the next index', async () => {
+      try {
+        const res = await getKey.getKeyPair(filename)
+
+        assert.hasAllKeys(res, ['priv', 'pub', 'pubHex'])
+        assert.equal(res.priv, mockData.keys[1].priv)
+        assert.equal(res.pub, mockData.keys[1].pub)
+        assert.equal(res.pubHex, mockData.keys[1].pubHex)
+      } catch (err) {
+        console.log(err)
+        assert.fail('unexpected result')
+      }
+    })
   })
 
-  it('run(): should return 0 and display error.message on empty flags', async () => {
-    sandbox.stub(getKey, 'parse').returns({ flags: {} })
+  describe('#validateFlags()', () => {
+    it('validateFlags() should throw error if name is not supplied.', () => {
+      try {
+        getKey.validateFlags({})
+      } catch (err) {
+        assert.include(
+          err.message,
+          'You must specify a wallet with the -n flag',
+          'Expected error message.'
+        )
+      }
+    })
 
-    const result = await getKey.run()
-    assert.equal(result, null)
-  })
-
-  it('run(): should handle an error without a message', async () => {
-    sandbox.stub(getKey, 'parse').throws({})
-
-    const result = await getKey.run()
-    assert.equal(result, null)
-  })
-
-  // getKey can be called directly by other programs, so this is tested separately.
-  it('getKey should throw error if name is not supplied.', async () => {
-    try {
-      await getKey.getPair(undefined)
-    } catch (err) {
-      assert.include(err.message, 'Could not open', 'Expected error message.')
-    }
-  })
-
-  // This validation function is called when the program is executed from the command line.
-  it('validateFlags() should throw error if name is not supplied.', () => {
-    try {
-      getKey.validateFlags({})
-    } catch (err) {
-      assert.include(
-        err.message,
-        'You must specify a wallet with the -n flag',
-        'Expected error message.'
+    it('should return on proper flags passed', () => {
+      assert.equal(
+        getKey.validateFlags({ name: 'test' }),
+        true,
+        'return true'
       )
-    }
-  })
-
-  it('should return on proper flags passed', () => {
-    assert.equal(
-      getKey.validateFlags({ name: 'test' }),
-      true,
-      'return true'
-    )
-  })
-
-  it('should throw error if wallet file not found.', async () => {
-    try {
-      await getKey.getPair('doesnotexist')
-    } catch (err) {
-      assert.include(err.message, 'Could not open', 'Expected error message.')
-    }
-  })
-
-  it('create keys pair for mainnet', async () => {
-    if (process.env.TEST !== 'unit') { getKey.BITBOX = new config.BCHLIB({ restURL: config.MAINNET_REST }) }
-    // Create a mainnet wallet
-    testUtil.restoreWallet()
-    // Generate a new address
-    const result = await getKey.getPair(filename)
-    assert.include(result.pub, 'bitcoincash:')
-  })
-
-  it('increments the nextAddress property of the wallet.', async () => {
-    // Use the real library if this is not a unit test
-    if (process.env.TEST !== 'unit') { getKey.BITBOX = new config.BCHLIB({ restURL: config.TESTNET_REST }) }
-
-    // Create a testnet wallet
-    testUtil.restoreWallet('testnet')
-    const initialWalletInfo = require('../../wallets/test123')
-    // console.log(`initialWalletInfo: ${util.inspect(initialWalletInfo)}`)
-
-    // Record the initial nextAddress property. This is going to be 1 for a new wallet.
-    const firstAddressIndex = initialWalletInfo.nextAddress
-
-    // Generate a new address
-    await getKey.getPair(filename)
-
-    // Delete the cached copy of the wallet. This allows testing of list-wallets.
-    delete require.cache[require.resolve('../../wallets/test123')]
-
-    // Read in the wallet file.
-    const walletInfo = require('../../wallets/test123')
-    // console.log(`walletInfo: ${util.inspect(walletInfo)}`)
-
-    assert.equal(
-      walletInfo.nextAddress,
-      firstAddressIndex + 1,
-      'nextAddress property should increment'
-    )
+    })
   })
 })
