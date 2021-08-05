@@ -95,6 +95,19 @@
           "typeID": 7
         }
       ]
+    },
+    {
+      "address": "X-avax1xjx5hvy3ckkaeqgj3cege6xrpdvc23vfru3jg0",
+      "hdIndex": 1,
+      "utxos": [
+        {
+          "txid": "GSZFm7DXMsBxf5rUFyQCZ2n1JV8yESpapJht3C89uQaAq7Yog",
+          "outputIdx": "00000001",
+          "amount": 1,
+          "assetID": "GSZFm7DXMsBxf5rUFyQCZ2n1JV8yESpapJht3C89uQaAq7Yog",
+          "typeID": 6
+        }
+      ]
     }
   ]
 }
