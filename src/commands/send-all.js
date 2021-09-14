@@ -128,7 +128,13 @@ class SendAll extends Command {
       const totalTokens = {}
       // gather all the other utxos
       const tokenInputs = tokenUtxos.reduce((ins, addr) => {
-        const addrUtxos = addr.utxos.map(utxo => {
+        const addrUtxos = addr.utxos.reduce((addrUtxos, utxo) => {
+          // skip minting baton utxos since they cant be transfered
+          if (utxo.typeID === 6) {
+            return addrUtxos
+          }
+
+          // handle type 7 or the regular token utxos
           const amount = new this.BN(utxo.amount)
           const assetID = this.bintools.cb58Decode(utxo.assetID)
           const addressBuffer = this.xchain.parseAddress(addr.address)
@@ -146,8 +152,9 @@ class SendAll extends Command {
             transferInput
           )
 
-          return transferableInput
-        })
+          addrUtxos.push(transferableInput)
+          return addrUtxos
+        }, [])
 
         ins.push(...addrUtxos)
         return ins

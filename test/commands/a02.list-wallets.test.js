@@ -2,6 +2,7 @@
 
 // const { expect, test } = require("@oclif/test")
 const assert = require('chai').assert
+const sinon = require('sinon')
 const testUtil = require('../util/test-util')
 const ListWallets = require('../../src/commands/list-wallets')
 const filename = `${__dirname}/../../wallets/test123.json`
@@ -19,9 +20,10 @@ const deleteFile = () => {
   return prom
 }
 describe('list-wallets', () => {
-  // let listWallets
+  let sandbox
 
   beforeEach(async () => {
+    sandbox = sinon.createSandbox()
     await deleteFile()
   })
 
@@ -58,11 +60,12 @@ describe('list-wallets', () => {
     testUtil.restoreAvaxWallet()
 
     const listWallets = new ListWallets()
-    Promise.resolve(listWallets.run()).then(function (table) {
-      assert.include(table, 'Name')
-      assert.include(table, 'Network')
-      assert.include(table, 'Balance (AVAX)')
-    })
+    sandbox.stub(listWallets, 'log').returns(true)
+    const table = await listWallets.run()
+
+    assert.include(table, 'Name')
+    assert.include(table, 'Network')
+    assert.include(table, 'Balance (AVAX)')
   })
 
   it('should return empty array on missing wallets data', async () => {

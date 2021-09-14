@@ -107,9 +107,15 @@ class UpdateBalances extends Command {
       let unique = collection.unique()
       unique = unique.toArray()
 
+<<<<<<< HEAD
       console.log(" ")
       console.log("Avalanche Token Summary:")
       console.log("Balance Name TokenID")
+=======
+      this.log(' ')
+      this.log('Avalanche Token Summary:')
+      this.log('Balance Name TokenID')
+>>>>>>> master
 
       // Loop through each unique tokenID.
       for (let i = 0; i < unique.length; i++) {
@@ -138,11 +144,17 @@ class UpdateBalances extends Command {
 
         // Write out summary info to the console.
         total = total / Math.pow(10, denomination)
+<<<<<<< HEAD
         console.log(
           `${total.toString().padStart(7)} ${symbol.padStart(4)} ${thisAssetId}`
         )
       }
       console.log(" ")
+=======
+        this.log(`${total.toString().padStart(7)} ${symbol.padStart(4)} ${thisAssetId}`)
+      }
+      this.log(' ')
+>>>>>>> master
     } catch (err) {
       console.log("Error in update-balances.js/displayTokenBalances()")
       throw err
