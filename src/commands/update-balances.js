@@ -77,8 +77,10 @@ class UpdateBalances extends Command {
     const addressData = await this.getAllAddressData(walletInfo)
 
     // Cut down on screen spam when running unit tests.
-    // Summarize token balances
-    this.displayTokenBalances(addressData.balances)
+    if (process.env.TEST !== 'unit') {
+      // Summarize token balances
+      this.displayTokenBalances(addressData.balances)
+    }
 
     const addresses = this.updateAddresses(walletInfo, addressData.balances)
 
@@ -136,7 +138,10 @@ class UpdateBalances extends Command {
 
         // Write out summary info to the console.
         total = total / Math.pow(10, denomination)
-        this.log(`${total.toString().padStart(7)} ${symbol.padStart(4)} ${thisAssetId}`)
+
+        this.log(
+          `${total.toString().padStart(7)} ${symbol.padStart(4)} ${thisAssetId}`
+        )
       }
       this.log(' ')
     } catch (err) {
@@ -162,7 +167,11 @@ class UpdateBalances extends Command {
       while (batchHasBalance || currentIndex < walletInfo.nextAddress) {
         // while (batchHasBalance || currentIndex < 60) {
         // Get a 20-address batch of data.
-        const thisDataBatch = await this.getAddressData(walletInfo, currentIndex, limit)
+        const thisDataBatch = await this.getAddressData(
+          walletInfo,
+          currentIndex,
+          limit
+        )
 
         // Increment the index by limit (addresses).
         currentIndex += limit
@@ -204,7 +213,9 @@ class UpdateBalances extends Command {
 
       if (limit > 20) throw new Error('limit must be 20 or less.')
       // console.log(' ')
-      console.log(`Getting address data at index ${index} up to index ${index + limit}`)
+      console.log(
+        `Getting address data at index ${index} up to index ${index + limit}`
+      )
 
       // Get the list of addresses.
       const addresses = this.appUtils.generateAvalancheAddress(
@@ -216,13 +227,20 @@ class UpdateBalances extends Command {
       // get AVAX balance and details for each address.
       const balances = []
       const avaxBuffer = await this.xchain.getAVAXAssetID()
-      const avaxAssetDescription = await this.xchain.getAssetDescription(avaxBuffer)
+
+      const avaxAssetDescription = await this.xchain.getAssetDescription(
+        avaxBuffer
+      )
       let navaxAmount = 0
 
       for (let i = 0; i < addresses.length; i++) {
         const addr = addresses[i]
         const hdIndex = i + index
-        const balance = await this.getAddressBalances(addr, avaxAssetDescription, hdIndex)
+        const balance = await this.getAddressBalances(
+          addr,
+          avaxAssetDescription,
+          hdIndex
+        )
 
         if (!balance.assets.length) {
           continue
@@ -244,7 +262,10 @@ class UpdateBalances extends Command {
         const addr = addresses[i]
         const addrBuffer = this.xchain.parseAddress(addr)
         const thisUtxo = utxos.filter(item => {
-          return item.getOutput().getAddressIdx(addrBuffer) >= 0 && item.getOutput().getTypeID() < 10
+          return (
+            item.getOutput().getAddressIdx(addrBuffer) >= 0 &&
+            item.getOutput().getTypeID() < 10
+          )
         })
         // Cut down on screen spam when running unit tests.
         // if (process.env.TEST !== 'unit') {
@@ -257,7 +278,8 @@ class UpdateBalances extends Command {
 
       // Filter out the UTXOs.
       const { avaxUtxos, otherUtxos } = await this.filterUtxos(
-        uxtosByIndex, avaxBuffer.toString('hex')
+        uxtosByIndex,
+        avaxBuffer.toString('hex')
       )
 
       return { balances, avaxUtxos, otherUtxos, navaxAmount }
@@ -362,7 +384,10 @@ class UpdateBalances extends Command {
           let amount = 1
 
           if (utxoType === 7) {
-            amount = utxo.getOutput().getAmount().toNumber()
+            amount = utxo
+              .getOutput()
+              .getAmount()
+              .toNumber()
           }
 
           const formatedUTXO = {
@@ -426,7 +451,8 @@ class UpdateBalances extends Command {
   }
 }
 
-UpdateBalances.description = 'Poll the network and update the balances of the wallet.'
+UpdateBalances.description =
+  'Poll the network and update the balances of the wallet.'
 
 UpdateBalances.flags = {
   name: flags.string({ char: 'n', description: 'Name of wallet' })
