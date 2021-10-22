@@ -45,10 +45,10 @@ class MakeOffer extends Command {
 
       // Open the wallet data file.
       const filename = `${__dirname}/../../wallets/${name}.json`
-      const walletInfo = appUtils.openWallet(filename)
+      let walletInfo = appUtils.openWallet(filename)
 
       // Update balances before sending.
-      // walletInfo = await this.updateBalances.updateBalances(flags)
+      walletInfo = await this.updateBalances.updateBalances(flags)
       let txInfo = {}
 
       if (flags.operation === 'sell') {
@@ -61,7 +61,7 @@ class MakeOffer extends Command {
       return txInfo
     } catch (err) {
       console.log('Error in send-tokens.js/run(): ', err)
-      return 1
+      return 0
     }
   }
 

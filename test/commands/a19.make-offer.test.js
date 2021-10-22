@@ -148,6 +148,17 @@ describe('#make-offer', () => {
 
       assert.equal(result, true)
     })
+
+    it('should return true if its a buy operation', () => {
+      const flags = {
+        name: 'testwallet',
+        operation: 'buy'
+      }
+
+      const result = uut.validateFlags(flags)
+
+      assert.equal(result, true)
+    })
   })
 
   describe('#sell', () => {
@@ -234,9 +245,36 @@ describe('#make-offer', () => {
       }
     })
 
+    it('should return the transaction hex for a transaction without remainder', async () => {
+      try {
+        const flags = {
+          name: 'test123',
+          amount: 490,
+          avax: 10000000,
+          operation: 'sell',
+          tokenId: avaxMockData.quikString
+        }
+
+        const addressWithTokens = mockedWallet.addresses['1']
+
+        sandbox.stub(uut, 'parse').returns({ flags })
+        sandbox.stub(uut.updateBalances, 'updateBalances').resolves(mockedWallet)
+        sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+
+        const sellObj = await uut.run()
+
+        assert.hasAllKeys(sellObj, ['txHex', 'addrReferences'])
+        const [address] = Object.values(sellObj.addrReferences)
+        assert.equal(address, addressWithTokens)
+      } catch (error) {
+        console.log(error.message)
+        assert.fail('Unexpected result')
+      }
+    })
+
     it('should return (for now) en empty object', async () => {
       try {
-        const flags = { operation: 'buy' }
+        const flags = { operation: 'buy', name: 'test123' }
 
         sandbox.stub(uut, 'parse').returns({ flags })
         sandbox.stub(uut.updateBalances, 'updateBalances').resolves(mockedWallet)
@@ -248,6 +286,14 @@ describe('#make-offer', () => {
         console.log(error.message)
         assert.fail('Unexpected result')
       }
+    })
+
+    it('should return 0 and display error.message on empty flags', async () => {
+      sandbox.stub(uut, 'parse').returns({ flags: {} })
+
+      const result = await uut.run()
+
+      assert.equal(result, 0)
     })
   })
 })
