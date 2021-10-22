@@ -7,12 +7,16 @@
 
 const UpdateBalances = require('./update-balances')
 const SendTokens = require('./send-tokens')
+const Send = require('./send')
 
 const { Avalanche, BinTools, BN } = require('avalanche')
 const avm = require('avalanche/dist/apis/avm')
 
 const AppUtils = require('../util')
 const appUtils = new AppUtils()
+
+const { Signature } = require('avalanche/dist/common/credentials')
+const createHash = require('create-hash')
 
 // Used for debugging and error reporting.
 const util = require('util')
@@ -35,6 +39,7 @@ class MakeOffer extends Command {
 
     this.appUtils = appUtils
     this.sendTokens = new SendTokens()
+    this.send = new Send()
   }
 
   async run () {
@@ -43,10 +48,14 @@ class MakeOffer extends Command {
 
       this.validateFlags(flags)
 
-      const tokenAmount = flags.amount
-      const avaxAmount = flags.avax
-      const tokenId = flags.tokenId // token ID.
-      const name = flags.name // Name of the wallet.
+      const {
+        amount: tokenAmount,
+        avax: avaxAmount,
+        tokenId,
+        name,
+        referece,
+        txHex
+      } = flags
 
       // Open the wallet data file.
       const filename = `${__dirname}/../../wallets/${name}.json`
@@ -61,7 +70,12 @@ class MakeOffer extends Command {
         this.appUtils.readTx(txInfo.txHex)
       }
 
-      // console.log(`${flags.operation}: ${JSON.stringify(txInfo, null, 2)}`)
+      if (flags.operation === 'buy') {
+        txInfo = await this.buy(walletInfo, txHex, referece)
+        // this.appUtils.readTx(txInfo.txHex)
+      }
+
+      this.log(`${flags.operation}: ${JSON.stringify(txInfo, null, 2)}`)
 
       return txInfo
     } catch (err) {
@@ -128,11 +142,11 @@ class MakeOffer extends Command {
         Buffer.from('sell offer')
       )
 
-      // This is what Alice has to send and what Bob will receive
       const hexString = partialTx.toBuffer().toString('hex')
+
       return {
         txHex: hexString,
-        addrReferences
+        addrReferences: JSON.stringify(addrReferences)
       }
     } catch (err) {
       console.log('Error in make-offer.js/sell()')
@@ -140,24 +154,146 @@ class MakeOffer extends Command {
     }
   }
 
+  async buy (walletInfo, txHex, addrReferences) {
+    try {
+      const avaxID = await this.xchain.getAVAXAssetID()
+      addrReferences = JSON.parse(addrReferences)
+
+      // Parse the old transaction
+      const baseTx = new this.avm.BaseTx()
+      const txBuffer = Buffer.from(txHex, 'hex')
+      baseTx.fromBuffer(txBuffer)
+
+      // handle avax input with optimal avax UTXO
+      const outputs = baseTx.getOuts()
+      const avaxOut = outputs.find(item => {
+        return item.getAssetID().toString('hex') === avaxID.toString('hex')
+      })
+
+      const fee = this.xchain.getTxFee()
+      const avaxRequired = avaxOut.getOutput().getAmount()
+      const avaxUtxo = await this.send.selectUTXO(avaxRequired.toNumber(), walletInfo.avaxUtxos, true)
+
+      if (!avaxUtxo.amount) {
+        this.log('Could not find a UTXO big enough for this transaction')
+        throw new Error('Not enough avax in the selected utxo')
+      }
+
+      const returnAddr = walletInfo.addresses[avaxUtxo.hdIndex]
+      const avaxInput = this.appUtils.encodeUtxo(avaxUtxo, returnAddr)
+      const utxoID = this.bintools.cb58Encode(avaxInput.getOutputIdx())
+      addrReferences[utxoID] = returnAddr
+
+      // handle token output, referencing the first input as the token input
+      const inputs = baseTx.getIns()
+      const [tokenInput] = inputs
+
+      const tokenRemainderOut = outputs.find(item => {
+        return item.getAssetID().toString('hex') !== avaxID.toString('hex')
+      })
+      let tokenRemainder = new this.BN(0)
+      if (tokenRemainderOut) {
+        tokenRemainder = tokenRemainderOut.getOutput().getAmount()
+      }
+
+      const tokenAmount = tokenInput.getInput().getAmount().sub(tokenRemainder)
+      const assetID = tokenInput.getAssetID()
+      const returnAddrBuff = this.xchain.parseAddress(returnAddr)
+      const tokenOutput = this.appUtils.generateOutput(tokenAmount, returnAddrBuff, assetID)
+
+      inputs.push(avaxInput)
+      outputs.push(tokenOutput)
+
+      // send back the remainding avax if any
+      const remainder = new this.BN(avaxUtxo.amount).sub(avaxRequired.add(fee))
+      if (remainder.gt(new this.BN(0))) {
+        const remainderOut = this.appUtils.generateOutput(remainder, returnAddrBuff, avaxID)
+        outputs.push(remainderOut)
+      }
+
+      // Build the transcation
+      const partialTx = new this.avm.BaseTx(
+        this.ava.getNetworkID(),
+        this.bintools.cb58Decode(this.xchain.getBlockchainID()),
+        outputs,
+        inputs,
+        Buffer.from('buy offer')
+      )
+
+      // Partially sign the tx
+      const keyChain = this.appUtils.avalancheChangeAddress(walletInfo, avaxUtxo.hdIndex)
+      const unsigned = new this.avm.UnsignedTx(partialTx)
+
+      const signed = this.partialySignTx(
+        unsigned,
+        keyChain,
+        addrReferences
+      )
+
+      const hexString = signed.toBuffer().toString('hex')
+      return {
+        txHex: hexString,
+        addrReferences: JSON.stringify(addrReferences)
+      }
+    } catch (err) {
+      console.log('Error in make-offer.js/sell()')
+      throw err
+    }
+  }
+
+  /**
+   * This method assumes that all the utxos have only one associated address
+   * @param {avm.UnsignedTx} tx
+   * @param {KeyChain} keychain
+   * @param {Object} reference
+   * @param {Credential} credentials
+   */
+  partialySignTx (tx, keychain, reference = {}, credentials = []) {
+    const txBuffer = tx.toBuffer()
+    const msg = Buffer.from(createHash('sha256').update(txBuffer).digest())
+
+    const inputs = tx.getTransaction().getIns()
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i]
+      const cred = this.avm.SelectCredentialClass(input.getInput().getCredentialID())
+
+      const inputid = this.bintools.cb58Encode(input.getOutputIdx())
+
+      try {
+        const source = this.xchain.parseAddress(reference[inputid])
+        const keypair = keychain.getKey(source)
+        const signval = keypair.sign(msg)
+        const sig = new Signature()
+        sig.fromBuffer(signval)
+        cred.addSignature(sig)
+        this.log(`input ${i}: Successfully signed, ( ${inputid} signed with ${reference[inputid]} )`)
+        credentials[i] = cred
+      } catch (error) {
+        this.log(`input ${i}: Skipping, address is not in the keychain, ( ${inputid} )`)
+      }
+    }
+
+    return new this.avm.Tx(tx, credentials)
+  }
+
   // Validate the proper flags are passed in.
   validateFlags (flags) {
     // Exit if wallet not specified.
     const name = flags.name
     if (typeof name !== 'string' || !name.length) {
-      throw new Error('You must specify a wallet with the -n flag.')
+      throw new Error('You must specify a wallet with the -n flag')
     }
 
     const operation = flags.operation
     if (operation === 'sell') {
       const amount = flags.amount
       if (isNaN(Number(amount))) {
-        throw new Error('You must specify a token quantity with the -q flag.')
+        throw new Error('You must specify a token quantity with the -q flag')
       }
 
       const avax = flags.avax
       if (isNaN(Number(avax))) {
-        throw new Error('You must specify an avax quantity with the -a flag.')
+        throw new Error('You must specify an avax quantity with the -a flag')
       }
 
       const tokenId = flags.tokenId
@@ -169,6 +305,18 @@ class MakeOffer extends Command {
     }
 
     if (operation === 'buy') {
+      const txHex = flags.txHex
+      if (typeof txHex !== 'string' || !txHex.length) {
+        throw new Error('You must specify transaction hex with the -h flag')
+      }
+
+      let referece = flags.referece
+      if (typeof referece !== 'string' || !referece.length) {
+        throw new Error('You must specify the utxos address reference with the -r flag')
+      }
+
+      referece = JSON.parse(referece)
+
       return true
     }
 
@@ -195,6 +343,14 @@ MakeOffer.flags = {
   operation: flags.string({
     char: 'o',
     description: 'The operation to perform (buy, or sell)'
+  }),
+  referece: flags.string({
+    char: 'r',
+    description: 'the address reference as JSON'
+  }),
+  txHex: flags.string({
+    char: 'h',
+    description: 'the previous partial transaction encoded as hex'
   })
 }
 
