@@ -161,16 +161,13 @@ class AppUtils {
   }
 
   generateOutput (amount, address, assetID) {
-    const tokenTransferOutput = new this.avm.SECPTransferOutput(
-      amount,
-      [address]
-    )
-    return new this.avm.TransferableOutput(
-      assetID,
-      tokenTransferOutput
-    )
+    const tokenTransferOutput = new this.avm.SECPTransferOutput(amount, [
+      address
+    ])
+    return new this.avm.TransferableOutput(assetID, tokenTransferOutput)
   }
 
+  // Read a paritally signed transaction and convert it to a JSON object.
   readTx (hex) {
     const baseTx = new this.avm.BaseTx()
     const buffer = Buffer.from(hex, 'hex')
@@ -184,7 +181,10 @@ class AppUtils {
     tx.inputs = inputs.map(input => {
       const formated = {}
       formated.asset = this.bintools.cb58Encode(input.getAssetID())
-      formated.amount = input.getInput().getAmount().toNumber()
+      formated.amount = input
+        .getInput()
+        .getAmount()
+        .toNumber()
       return formated
     })
 
@@ -192,8 +192,14 @@ class AppUtils {
     tx.outputs = outputs.map(output => {
       const formated = {}
       formated.asset = this.bintools.cb58Encode(output.getAssetID())
-      formated.amount = output.getOutput().getAmount().toNumber()
-      formated.addresses = output.getOutput().getAddresses().map(this.ava.XChain().addressFromBuffer)
+      formated.amount = output
+        .getOutput()
+        .getAmount()
+        .toNumber()
+      formated.addresses = output
+        .getOutput()
+        .getAddresses()
+        .map(this.ava.XChain().addressFromBuffer)
       return formated
     })
 

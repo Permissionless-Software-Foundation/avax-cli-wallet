@@ -72,7 +72,7 @@ describe('#make-offer', () => {
       } catch (err) {
         assert.include(
           err.message,
-          'You must specifcy the operation type (either sell or buy) with the -o flag',
+          'You must specifiy the operation type (either sell or buy) with the -o flag',
           'Expected error message'
         )
       }
@@ -129,7 +129,7 @@ describe('#make-offer', () => {
       } catch (err) {
         assert.include(
           err.message,
-          'You must specifcy the assetID ID with the -t flag',
+          'You must specifiy the assetID ID with the -t flag',
           'Expected error message'
         )
       }
@@ -231,7 +231,9 @@ describe('#make-offer', () => {
         const addressWithTokens = mockedWallet.addresses['1']
 
         sandbox.stub(uut, 'parse').returns({ flags })
-        sandbox.stub(uut.updateBalances, 'updateBalances').resolves(mockedWallet)
+        sandbox
+          .stub(uut.updateBalances, 'updateBalances')
+          .resolves(mockedWallet)
         sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
 
         const sellObj = await uut.run()
@@ -258,7 +260,9 @@ describe('#make-offer', () => {
         const addressWithTokens = mockedWallet.addresses['1']
 
         sandbox.stub(uut, 'parse').returns({ flags })
-        sandbox.stub(uut.updateBalances, 'updateBalances').resolves(mockedWallet)
+        sandbox
+          .stub(uut.updateBalances, 'updateBalances')
+          .resolves(mockedWallet)
         sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
 
         const sellObj = await uut.run()
@@ -277,7 +281,9 @@ describe('#make-offer', () => {
         const flags = { operation: 'buy', name: 'test123' }
 
         sandbox.stub(uut, 'parse').returns({ flags })
-        sandbox.stub(uut.updateBalances, 'updateBalances').resolves(mockedWallet)
+        sandbox
+          .stub(uut.updateBalances, 'updateBalances')
+          .resolves(mockedWallet)
 
         const buyObj = await uut.run()
 
