@@ -1,3 +1,8 @@
+/*
+  Makes an offer for selling a token on the X-chain DEX.
+  This is the first part of a collaborative transaction.
+*/
+
 'use strict'
 
 const UpdateBalances = require('./update-balances')
@@ -53,7 +58,7 @@ class MakeOffer extends Command {
 
       if (flags.operation === 'sell') {
         txInfo = await this.sell(walletInfo, tokenId, tokenAmount, avaxAmount)
-        // this.appUtils.readTx(txInfo.txHex)
+        this.appUtils.readTx(txInfo.txHex)
       }
 
       // console.log(`${flags.operation}: ${JSON.stringify(txInfo, null, 2)}`)
@@ -76,11 +81,9 @@ class MakeOffer extends Command {
       // Get a list of token UTXOs from the wallet for this token.
       const tokenUtxos = this.sendTokens.getTokenUtxos(tokenId, walletInfo)
 
-      const availableTokenAmount = tokenUtxos.reduce(
-        (total, current) => {
-          return total.add(new this.BN(current.amount))
-        }, new this.BN(0)
-      )
+      const availableTokenAmount = tokenUtxos.reduce((total, current) => {
+        return total.add(new this.BN(current.amount))
+      }, new this.BN(0))
 
       if (availableTokenAmount.lt(tokenAmount)) {
         throw new Error('Not enough tokens to be send')
@@ -99,12 +102,20 @@ class MakeOffer extends Command {
       // get the desired token outputs for the transaction
       const returnAddr = walletInfo.addresses[tokenUtxos[0].hdIndex]
       const returnAddrBuff = this.xchain.parseAddress(returnAddr)
-      const avaxOutput = this.appUtils.generateOutput(avaxAmount, returnAddrBuff, avaxID)
+      const avaxOutput = this.appUtils.generateOutput(
+        avaxAmount,
+        returnAddrBuff,
+        avaxID
+      )
       const outputs = [avaxOutput]
 
       const remainder = availableTokenAmount.sub(tokenAmount)
       if (remainder.gt(new this.BN(0))) {
-        const remainderOut = this.appUtils.generateOutput(remainder, returnAddrBuff, tokenBuffer)
+        const remainderOut = this.appUtils.generateOutput(
+          remainder,
+          returnAddrBuff,
+          tokenBuffer
+        )
         outputs.push(remainderOut)
       }
 
@@ -151,7 +162,7 @@ class MakeOffer extends Command {
 
       const tokenId = flags.tokenId
       if (typeof tokenId !== 'string' || !tokenId.length) {
-        throw new Error('You must specifcy the assetID ID with the -t flag')
+        throw new Error('You must specifiy the assetID ID with the -t flag')
       }
 
       return true
@@ -162,7 +173,9 @@ class MakeOffer extends Command {
     }
 
     // Exit if wallet not specified.
-    throw new Error('You must specifcy the operation type (either sell or buy) with the -o flag')
+    throw new Error(
+      'You must specifiy the operation type (either sell or buy) with the -o flag'
+    )
   }
 }
 
@@ -171,9 +184,18 @@ MakeOffer.description = 'Create an offer to either buy or sell tokens'
 MakeOffer.flags = {
   name: flags.string({ char: 'n', description: 'Name of wallet' }),
   tokenId: flags.string({ char: 't', description: 'Token ID' }),
-  amount: flags.integer({ char: 'q', decription: 'Quantity of tokens to send' }),
-  avax: flags.integer({ char: 'a', decription: 'Quantity of avax to request (must be on nAvax)' }),
-  operation: flags.string({ char: 'o', description: 'The operation to perform (buy, or sell)' })
+  amount: flags.integer({
+    char: 'q',
+    decription: 'Quantity of tokens to send'
+  }),
+  avax: flags.integer({
+    char: 'a',
+    decription: 'Quantity of avax to request (must be in nAvax)'
+  }),
+  operation: flags.string({
+    char: 'o',
+    description: 'The operation to perform (buy, or sell)'
+  })
 }
 
 module.exports = MakeOffer
