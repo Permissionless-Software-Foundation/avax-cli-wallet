@@ -67,12 +67,14 @@ class MakeOffer extends Command {
 
       if (flags.operation === 'sell') {
         txInfo = await this.sell(walletInfo, tokenId, tokenAmount, avaxAmount)
-        this.appUtils.readTx(txInfo.txHex)
       }
 
       if (flags.operation === 'buy') {
         txInfo = await this.buy(walletInfo, txHex, referece)
-        // this.appUtils.readTx(txInfo.txHex)
+      }
+
+      if (flags.operation === 'accept') {
+        txInfo = await this.accept(walletInfo, txHex, referece)
       }
 
       this.log(`${flags.operation}: ${JSON.stringify(txInfo, null, 2)}`)
@@ -107,7 +109,7 @@ class MakeOffer extends Command {
       const inputs = tokenUtxos.map(item => {
         const address = walletInfo.addresses[item.hdIndex]
         const utxo = this.appUtils.encodeUtxo(item, address)
-        const utxoID = this.bintools.cb58Encode(utxo.getOutputIdx())
+        const utxoID = utxo.getUTXOID()
 
         addrReferences[utxoID] = address
         return utxo
@@ -149,7 +151,7 @@ class MakeOffer extends Command {
         addrReferences: JSON.stringify(addrReferences)
       }
     } catch (err) {
-      console.log('Error in make-offer.js/sell()')
+      console.log('Error in make-offer.js/sell()', err)
       throw err
     }
   }
@@ -181,7 +183,7 @@ class MakeOffer extends Command {
 
       const returnAddr = walletInfo.addresses[avaxUtxo.hdIndex]
       const avaxInput = this.appUtils.encodeUtxo(avaxUtxo, returnAddr)
-      const utxoID = this.bintools.cb58Encode(avaxInput.getOutputIdx())
+      const utxoID = avaxInput.getUTXOID()
       addrReferences[utxoID] = returnAddr
 
       // handle token output, referencing the first input as the token input
@@ -229,14 +231,56 @@ class MakeOffer extends Command {
         keyChain,
         addrReferences
       )
-
       const hexString = signed.toBuffer().toString('hex')
+
       return {
         txHex: hexString,
         addrReferences: JSON.stringify(addrReferences)
       }
     } catch (err) {
-      console.log('Error in make-offer.js/sell()')
+      console.log('Error in make-offer.js/buy()', err)
+      throw err
+    }
+  }
+
+  async accept (walletInfo, txHex, addrReferences) {
+    try {
+      addrReferences = JSON.parse(addrReferences)
+
+      // Parse the partially signed transaction
+      const halfSignedTx = new this.avm.Tx()
+      const txBuffer = Buffer.from(txHex, 'hex')
+      halfSignedTx.fromBuffer(txBuffer)
+
+      const credentials = halfSignedTx.getCredentials()
+      const unsigned = halfSignedTx.getUnsignedTx()
+
+      let xkeyChain = this.appUtils.avalancheChangeAddress(walletInfo, 0)
+      for (let index = 0; index < walletInfo.nextAddress; index++) {
+        const kc = this.appUtils.avalancheChangeAddress(walletInfo, index)
+        xkeyChain = xkeyChain.union(kc)
+      }
+
+      // fully sign the tx
+      const signed = this.partialySignTx(
+        unsigned,
+        xkeyChain,
+        addrReferences,
+        credentials
+      )
+
+      // // check the trasaction was signed
+      const newCredentials = signed.getCredentials()
+      const hasAllSignatures = newCredentials.every(cred => Boolean(cred.sigArray.length))
+
+      if (!hasAllSignatures) {
+        throw new Error('The transaction is not fully signed')
+      }
+      signed.toBuffer().toString('hex')
+      const txid = await this.appUtils.broadcastAvaxTx(signed)
+      return { txid }
+    } catch (err) {
+      console.log('Error in make-offer.js/accept()', err)
       throw err
     }
   }
@@ -248,16 +292,17 @@ class MakeOffer extends Command {
    * @param {Object} reference
    * @param {Credential} credentials
    */
-  partialySignTx (tx, keychain, reference = {}, credentials = []) {
+  partialySignTx (tx, keychain, reference = {}, oldCredentials = []) {
     const txBuffer = tx.toBuffer()
     const msg = Buffer.from(createHash('sha256').update(txBuffer).digest())
+    const credentials = [...oldCredentials]
 
     const inputs = tx.getTransaction().getIns()
     for (let i = 0; i < inputs.length; i++) {
       const input = inputs[i]
       const cred = this.avm.SelectCredentialClass(input.getInput().getCredentialID())
 
-      const inputid = this.bintools.cb58Encode(input.getOutputIdx())
+      const inputid = input.getUTXOID()
 
       try {
         const source = this.xchain.parseAddress(reference[inputid])
@@ -266,13 +311,17 @@ class MakeOffer extends Command {
         const sig = new Signature()
         sig.fromBuffer(signval)
         cred.addSignature(sig)
+
         this.log(`input ${i}: Successfully signed, ( ${inputid} signed with ${reference[inputid]} )`)
         credentials[i] = cred
       } catch (error) {
         this.log(`input ${i}: Skipping, address is not in the keychain, ( ${inputid} )`)
+
+        if (!credentials[i]) {
+          credentials[i] = cred
+        }
       }
     }
-
     return new this.avm.Tx(tx, credentials)
   }
 
@@ -304,7 +353,7 @@ class MakeOffer extends Command {
       return true
     }
 
-    if (operation === 'buy') {
+    if (operation === 'buy' || operation === 'accept') {
       const txHex = flags.txHex
       if (typeof txHex !== 'string' || !txHex.length) {
         throw new Error('You must specify transaction hex with the -h flag')

@@ -170,13 +170,24 @@ class AppUtils {
 
   // Read a paritally signed transaction and convert it to a JSON object.
   readTx (hex) {
-    const baseTx = new this.avm.BaseTx()
+    const short = hex.substr(0, 19)
     const buffer = Buffer.from(hex, 'hex')
-    baseTx.fromBuffer(buffer)
+    let baseTx
+    let typeName
 
-    const tx = {}
+    // check if it's a baseTx or an unsignedTx based off of the initial bytes
+    if (short.match(/^[0]*$/)) {
+      const avmTx = new this.avm.Tx()
+      avmTx.fromBuffer(buffer)
+      typeName = avmTx.getTypeName()
+      baseTx = avmTx.getUnsignedTx().getTransaction()
+    } else {
+      baseTx = new this.avm.BaseTx()
+      baseTx.fromBuffer(buffer)
+      typeName = baseTx.getTypeName()
+    }
 
-    tx.typeName = baseTx.getTypeName()
+    const tx = { typeName }
 
     const inputs = baseTx.getIns()
     tx.inputs = inputs.map(input => {
