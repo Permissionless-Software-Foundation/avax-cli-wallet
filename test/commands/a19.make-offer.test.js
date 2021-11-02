@@ -41,6 +41,8 @@ describe('#make-offer', () => {
     uut = new MakeOffer()
 
     delete require.cache[require.resolve('../../wallets/test123')]
+
+    sandbox.stub(uut, 'log').returns(null)
   })
 
   afterEach(() => {
@@ -149,10 +151,71 @@ describe('#make-offer', () => {
       assert.equal(result, true)
     })
 
+    it('should throw an error if the tx hex is not passed', () => {
+      try {
+        const flags = {
+          name: 'testwallet',
+          operation: 'buy'
+        }
+
+        uut.validateFlags(flags)
+        assert.fail('Unexpected result')
+      } catch (err) {
+        assert.include(
+          err.message,
+          'You must specify transaction hex with the -h flag',
+          'Expected error message'
+        )
+      }
+    })
+
+    it('should throw an error if the addresses reference is not defined', () => {
+      try {
+        const flags = {
+          name: 'testwallet',
+          operation: 'buy',
+          txHex: 'somehex'
+        }
+
+        uut.validateFlags(flags)
+        assert.fail('Unexpected result')
+      } catch (err) {
+        assert.include(
+          err.message,
+          'You must specify the utxos address reference',
+          'Expected error message'
+        )
+      }
+    })
+
+    it('should throw an error if the addresses reference is not a valid JSON', () => {
+      try {
+        const flags = {
+          name: 'testwallet',
+          operation: 'buy',
+          txHex: 'somehex',
+          referece: 'a plain string'
+        }
+
+        uut.validateFlags(flags)
+        assert.fail('Unexpected result')
+      } catch (err) {
+        assert.include(
+          err.message,
+          'Unexpected token a in JSON at position 0',
+          'Expected error message'
+        )
+      }
+    })
+
     it('should return true if its a buy operation', () => {
+      const { hex, addrReferences } = avaxMockData.aliceTx
+
       const flags = {
         name: 'testwallet',
-        operation: 'buy'
+        operation: 'buy',
+        txHex: hex,
+        referece: addrReferences
       }
 
       const result = uut.validateFlags(flags)
@@ -208,8 +271,91 @@ describe('#make-offer', () => {
         const sellObj = await uut.sell(mockedWallet, tokenId, 400, 100)
 
         assert.hasAllKeys(sellObj, ['txHex', 'addrReferences'])
-        const [address] = Object.values(sellObj.addrReferences)
+        const references = JSON.parse(sellObj.addrReferences)
+        const [address] = Object.values(references)
         assert.equal(address, addressWithTokens)
+      } catch (err) {
+        console.log(err)
+        assert.fail('Unexpected result')
+      }
+    })
+  })
+
+  describe('#buy', () => {
+    it('should throw an error if the hex is invalid', async () => {
+      try {
+        const { addrReferences } = avaxMockData.aliceTx
+
+        sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+        mockedWallet.avaxUtxos = []
+
+        await uut.buy(mockedWallet, '0000000', addrReferences)
+        assert.fail('Unexpected result')
+      } catch (err) {
+        console.log(err)
+        assert.include(
+          err.message,
+          'Trying to access beyond buffer length',
+          'Expected error message'
+        )
+      }
+    })
+
+    it('should throw an error if the address reference is not a JSON object', async () => {
+      try {
+        const { hex } = avaxMockData.aliceTx
+
+        sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+        mockedWallet.avaxUtxos = []
+
+        await uut.buy(mockedWallet, hex, 'a plain string')
+        assert.fail('Unexpected result')
+      } catch (err) {
+        console.log(err)
+        assert.include(
+          err.message,
+          'Unexpected token a in JSON at position 0',
+          'Expected error message'
+        )
+      }
+    })
+
+    it('should throw an error if there is not enough avax to buy the token', async () => {
+      try {
+        const { hex, addrReferences } = avaxMockData.aliceTx
+
+        sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+        sandbox.stub(uut.send.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+        sandbox.stub(uut.send.xchain, 'getAssetDescription').resolves({ denomination: 9 })
+        mockedWallet.avaxUtxos = []
+
+        await uut.buy(mockedWallet, hex, addrReferences)
+        assert.fail('Unexpected result')
+      } catch (err) {
+        console.log(err)
+        assert.include(
+          err.message,
+          'Not enough avax in the selected utxo',
+          'Expected error message'
+        )
+      }
+    })
+
+    it('should return the transaction hex and the address reference object', async () => {
+      try {
+        const addressWithAvax = mockedWallet.addresses['1']
+        const { hex, addrReferences } = avaxMockData.aliceTx
+
+        sandbox.stub(uut.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+        sandbox.stub(uut.send.xchain, 'getAVAXAssetID').resolves(mockData.avaxID)
+        sandbox.stub(uut.send.xchain, 'getAssetDescription').resolves({ denomination: 9 })
+
+        const buyObj = await uut.buy(mockedWallet, hex, addrReferences)
+
+        assert.hasAllKeys(buyObj, ['txHex', 'addrReferences'])
+        const references = JSON.parse(buyObj.addrReferences)
+        const [address] = Object.values(references)
+        assert.equal(address, addressWithAvax)
       } catch (err) {
         console.log(err)
         assert.fail('Unexpected result')
@@ -239,7 +385,8 @@ describe('#make-offer', () => {
         const sellObj = await uut.run()
 
         assert.hasAllKeys(sellObj, ['txHex', 'addrReferences'])
-        const [address] = Object.values(sellObj.addrReferences)
+        const references = JSON.parse(sellObj.addrReferences)
+        const [address] = Object.values(references)
         assert.equal(address, addressWithTokens)
       } catch (error) {
         console.log(error.message)
@@ -268,7 +415,8 @@ describe('#make-offer', () => {
         const sellObj = await uut.run()
 
         assert.hasAllKeys(sellObj, ['txHex', 'addrReferences'])
-        const [address] = Object.values(sellObj.addrReferences)
+        const references = JSON.parse(sellObj.addrReferences)
+        const [address] = Object.values(references)
         assert.equal(address, addressWithTokens)
       } catch (error) {
         console.log(error.message)
@@ -276,18 +424,38 @@ describe('#make-offer', () => {
       }
     })
 
-    it('should return (for now) en empty object', async () => {
+    it('should return a tx hex for a partially signed transaction', async () => {
       try {
-        const flags = { operation: 'buy', name: 'test123' }
+        const { hex, addrReferences } = avaxMockData.aliceTx
+        const addressWithAvax = mockedWallet.addresses['1']
+
+        const flags = {
+          name: 'test123',
+          operation: 'buy',
+          txHex: hex,
+          referece: addrReferences
+        }
 
         sandbox.stub(uut, 'parse').returns({ flags })
         sandbox
           .stub(uut.updateBalances, 'updateBalances')
           .resolves(mockedWallet)
+        sandbox
+          .stub(uut.xchain, 'getAVAXAssetID')
+          .resolves(mockData.avaxID)
+        sandbox
+          .stub(uut.send.xchain, 'getAVAXAssetID')
+          .resolves(mockData.avaxID)
+        sandbox
+          .stub(uut.send.xchain, 'getAssetDescription')
+          .resolves({ denomination: 9 })
 
         const buyObj = await uut.run()
 
-        assert.equal(Object.keys(buyObj).length, 0)
+        assert.hasAllKeys(buyObj, ['txHex', 'addrReferences'])
+        const references = JSON.parse(buyObj.addrReferences)
+        const [address] = Object.values(references)
+        assert.equal(address, addressWithAvax)
       } catch (error) {
         console.log(error.message)
         assert.fail('Unexpected result')

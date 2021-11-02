@@ -198,14 +198,18 @@ class Send extends Command {
   // 2. The UTXO should be as close to the amount of AVAX as possible.
   //    i.e. as small as possible
   // Returns a single UTXO object.
-  async selectUTXO (avax, utxos) {
+  async selectUTXO (avax, utxos, isnAvax = false) {
     let candidateUTXO = {}
 
     const avaxBuffer = await this.xchain.getAVAXAssetID()
     const assetDetail = await this.xchain.getAssetDescription(avaxBuffer)
     const txFee = await this.xchain.getTxFee()
     // 1 nAVAX is equal to 0.000000001 AVAX
-    const navax = parseFloat(avax) * Math.pow(10, assetDetail.denomination)
+    let navax = avax
+
+    if (!isnAvax) {
+      navax = parseFloat(avax) * Math.pow(10, assetDetail.denomination)
+    }
 
     const total = navax + txFee.toNumber()
     // if it's a new wallet
@@ -219,7 +223,8 @@ class Send extends Command {
 
       // Loop through each UTXO for each address.
       for (let j = 0; j < thisAddr.utxos.length; j++) {
-        const thisUTXO = { ...thisAddr.utxos[j], hdIndex: thisAddr.hdIndex }
+        const thisUTXO = Object.assign({}, thisAddr.utxos[j])
+        thisUTXO.hdIndex = thisAddr.hdIndex
 
         // The UTXO must be greater than or equal to the send amount.
         if (thisUTXO.amount < total) {

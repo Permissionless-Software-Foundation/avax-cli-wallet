@@ -36,6 +36,7 @@ class AppUtils {
 
     this.bintools = BinTools.getInstance()
     this.avm = avm
+    this.xchain = this.ava.XChain()
     this.BN = BN
   }
 
@@ -73,7 +74,7 @@ class AppUtils {
   // or throws an error.
   async broadcastAvaxTx (Tx) {
     try {
-      const txid = await this.ava.XChain().issueTx(Tx)
+      const txid = await this.xchain.issueTx(Tx)
 
       return txid
     } catch (err) {
@@ -204,6 +205,7 @@ class AppUtils {
     })
 
     console.log(JSON.stringify(tx, null, 2))
+    return tx
   }
 }
 

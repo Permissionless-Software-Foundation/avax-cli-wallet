@@ -18,6 +18,16 @@ const quikBuffer = bintools.cb58Decode('2tEi6r6PZ9VXHogUmkCzvijmW81TRNjtKWnR4FA5
 const arpString = '2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv'
 const arpBuffer = bintools.cb58Decode('2XveqafoVaFzkRJaTd6HyAAhxzVQ8P3ijMQZ5DnELMGG1J36Tv')
 
+const aliceTx = {
+  hex: '00000001ed5f38341e436e5d46e2bb00b45d62ae97d1b050c64bc634ae10626739e35c4b0000000121e673' +
+    '17cbc4be2aeb00677ad6462778a8f52274b9d605df2591b23027a87dff0000000700000000009896800000' +
+    '0000000000000000000100000001348d4bb091c5addc81128e328ce8c30b598545890000000154c7adf764' +
+    '72280846e57737da7787359b80ef3353b4e0ec3034469c79bd439200000001f808d594b0360d20f7b4214b' +
+    'db51a773d0f5eb34c5157eea285fefa5a86f5e160000000500000000000001ea0000000100000000000000' +
+    '0a73656c6c206f66666572',
+  addrReferences: '{"111AZw1it":"X-avax1xjx5hvy3ckkaeqgj3cege6xrpdvc23vfru3jg0"}'
+}
+
 const keys = [
   {
     priv: 'PrivateKey-nquc7QFDAbfqA1Vp71whVvH7NPtR2FUV1rZhvTEZd7ZA9K5XH',
@@ -131,5 +141,6 @@ module.exports = {
   emptyUtxoSet,
   quikString,
   keys,
-  assetDetails
+  assetDetails,
+  aliceTx
 }
