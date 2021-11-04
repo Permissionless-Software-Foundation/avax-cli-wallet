@@ -383,11 +383,11 @@ MakeOffer.flags = {
   tokenId: flags.string({ char: 't', description: 'Token ID' }),
   amount: flags.integer({
     char: 'q',
-    decription: 'Quantity of tokens to send'
+    description: 'Quantity of tokens to send'
   }),
   avax: flags.integer({
     char: 'a',
-    decription: 'Quantity of avax to request (must be in nAvax)'
+    description: 'Quantity of avax to request (must be in nAvax)'
   }),
   operation: flags.string({
     char: 'o',
